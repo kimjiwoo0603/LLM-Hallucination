@@ -34,13 +34,14 @@ class MultiRunnerTests(unittest.TestCase):
                 encoding="utf-8",
             )
             (root / "config" / "test.json").write_text(
-                json.dumps({"dataset_manifest_path": "data/manifest.jsonl", "repetitions": 1, "agents": {"S1": {"provider": "openai", "model": "gpt-4.1", "api_key_env": "OPENAI_API_KEY", "temperature": 0, "max_tokens": 10}}, "stages": [{"id": "SINGLE_STAGE_1", "agent": "S1", "prompt_template": "{ARTICLE} {QUESTION}"}]}),
+                json.dumps({"dataset_manifest_path": "data/manifest.jsonl", "repetitions": 1, "agents": {"S1": {"provider": "openai", "model": "gpt-4.1", "api_key_env": "OPENAI_API_KEY", "temperature": 0, "max_tokens": 10}}, "stages": [{"id": "SINGLE_STAGE_1", "agent": "S1", "role": "article_grounded_checker", "prompt_template": "{ARTICLE} {QUESTION}"}]}),
                 encoding="utf-8",
             )
             run_dir = run_batch(root / "config" / "test.json", root / "results", "test", dry_run=True)
             record = json.loads((run_dir / "responses.jsonl").read_text(encoding="utf-8").splitlines()[0])
             self.assertEqual(record["question_condition"], "HIGH_PRESSURE_INDUCTION")
             self.assertEqual(record["source_question_id"], "A001_Q001")
+            self.assertEqual(record["stage_role"], "article_grounded_checker")
 
 
 if __name__ == "__main__":
