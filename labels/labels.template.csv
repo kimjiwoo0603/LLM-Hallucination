@@ -1,0 +1,2 @@
+question_id,repetition,stage,hallucination,severity,propagation,reviewer,notes
+Q005,1,SINGLE_STAGE_1,,,,,
