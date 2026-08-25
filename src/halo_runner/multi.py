@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -38,8 +39,12 @@ class ProviderClient:
         else:
             raise ValueError(f"Unsupported provider: {provider}")
         request = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
-        with urllib.request.urlopen(request, timeout=self.spec.get("timeout_seconds", 120)) as response:
-            body: Any = json.loads(response.read().decode("utf-8"))
+        try:
+            with urllib.request.urlopen(request, timeout=self.spec.get("timeout_seconds", 120)) as response:
+                body: Any = json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as error:
+            detail = error.read().decode("utf-8", errors="replace")
+            raise RuntimeError(f"{provider} API request failed (HTTP {error.code}): {detail}") from error
         for part in text_path:
             body = body[part]
         return body
