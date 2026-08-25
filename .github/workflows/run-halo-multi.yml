@@ -7,6 +7,14 @@ on:
         description: Number of repetitions for every article-question pair
         required: true
         default: "1"
+      max_articles:
+        description: "Maximum number of articles (0 = all articles)"
+        required: true
+        default: "0"
+      max_questions_per_article:
+        description: "Maximum questions per article (0 = all questions)"
+        required: true
+        default: "0"
 
 jobs:
   run:
@@ -21,7 +29,7 @@ jobs:
       - name: Create run configuration
         run: |
           cp config/halo_multi.example.json config/halo_multi.json
-          python -c "import json; p='config/halo_multi.json'; d=json.load(open(p)); d['repetitions']=int('${{ inputs.repetitions }}'); open(p,'w').write(json.dumps(d, ensure_ascii=False, indent=2)+'\\n')"
+          python -c "import json; p='config/halo_multi.json'; d=json.load(open(p)); d['repetitions']=int('${{ inputs.repetitions }}'); d['max_articles']=int('${{ inputs.max_articles }}'); d['max_questions_per_article']=int('${{ inputs.max_questions_per_article }}'); open(p,'w').write(json.dumps(d, ensure_ascii=False, indent=2)+'\n')"
       - name: Run experiment
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -33,4 +41,3 @@ jobs:
         with:
           name: halo-results-${{ github.run_id }}
           path: results/github-${{ github.run_id }}/
-
