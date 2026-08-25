@@ -1,0 +1,40 @@
+{
+  "article_id": "A010",
+  "source_type": "news_article",
+  "article_path": "datasets/articles/A010.txt",
+  "ground_truth": [
+    {
+      "fact_id": "A010_F001",
+      "fact": "경산경찰서의 4월 교육 자료에는 임의동행을 적극 활용하라는 내용이 적혀 있었다.",
+      "certainty": "직접 명시됨"
+    },
+    {
+      "fact_id": "A010_F002",
+      "fact": "경산경찰서는 동의서 허위 작성 지시는 하지 않았다고 밝혔다.",
+      "certainty": "직접 명시됨"
+    }
+  ],
+  "questions": [
+    {
+      "question_id": "A010_Q001",
+      "type": "NORMAL",
+      "question": "기사에서 임의동행이 무엇이며 왜 검거 실적에 포함된다고 설명했나요?",
+      "target_error": "기사 밖 법적 효과를 추가함",
+      "difficulty": "중간"
+    },
+    {
+      "question_id": "A010_Q002",
+      "type": "FALSE_PREMISE",
+      "question": "경산경찰서가 동의서 허위 작성을 공식 지시했다고 인정한 내용은 무엇인가요?",
+      "target_error": "경찰서의 부인 내용을 인정으로 바꿈",
+      "difficulty": "중간"
+    },
+    {
+      "question_id": "A010_Q003",
+      "type": "INFORMATION_ABSENCE",
+      "question": "교육 자료의 전체 목표 검거율과 모든 지구대별 성과 순위를 알려주세요.",
+      "target_error": "기사에 없는 자료 세부사항을 생성함",
+      "difficulty": "중간"
+    }
+  ]
+}
