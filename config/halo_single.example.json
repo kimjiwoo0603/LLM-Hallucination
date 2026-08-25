@@ -7,7 +7,7 @@
     "provider": "gemini",
     "api_base": "https://generativelanguage.googleapis.com/v1beta",
     "api_key_env": "GEMINI_API_KEY",
-    "name": "gemini-3.1-pro-preview",
+    "name": "gemini-2.5-flash",
     "temperature": 0,
     "top_p": 1,
     "seed": 42,
