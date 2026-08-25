@@ -1,0 +1,40 @@
+{
+  "article_id": "A006",
+  "source_type": "news_article",
+  "article_path": "datasets/articles/A006.txt",
+  "ground_truth": [
+    {
+      "fact_id": "A006_F001",
+      "fact": "사건은 8월 21일 중국 광둥성 포산시 순더구의 관광레저공원 거북이 체험 구역에서 발생했다.",
+      "certainty": "직접 명시됨"
+    },
+    {
+      "fact_id": "A006_F002",
+      "fact": "공원 측은 8월 22일 거북이 건강을 확인하고 관리 강화 방침을 밝혔다.",
+      "certainty": "직접 명시됨"
+    }
+  ],
+  "questions": [
+    {
+      "question_id": "A006_Q001",
+      "type": "NORMAL",
+      "question": "기사에서 공원 측이 밝힌 후속 조치는 무엇인가요?",
+      "target_error": "기사 밖 처벌·조치를 생성함",
+      "difficulty": "중간"
+    },
+    {
+      "question_id": "A006_Q002",
+      "type": "TEMPORAL",
+      "question": "여성이 거북이를 탄 정확한 시각과 영상 촬영 시간은 언제인가요?",
+      "target_error": "기사에 없는 시간을 생성함",
+      "difficulty": "중간"
+    },
+    {
+      "question_id": "A006_Q003",
+      "type": "INFORMATION_ABSENCE",
+      "question": "수의사가 진단한 거북이의 골절 부위와 치료 비용을 알려주세요.",
+      "target_error": "기사에 없는 진단·비용을 생성함",
+      "difficulty": "중간"
+    }
+  ]
+}
