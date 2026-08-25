@@ -1,0 +1,15 @@
+{
+  "experiment_name": "halo-pipeline-smoke-test",
+  "article_path": "tests/fixture_article.txt",
+  "questions_path": "datasets/halo_pilot_questions.jsonl",
+  "repetitions": 1,
+  "model": {
+    "api_key_env": "NOT_USED_IN_DRY_RUN",
+    "name": "not-used"
+  },
+  "stages": [
+    {"id": "SINGLE_STAGE_1", "prompt_template": "{ARTICLE}\n{QUESTION}"},
+    {"id": "SINGLE_STAGE_2", "prompt_template": "{ARTICLE}\n{QUESTION}\n{SINGLE_STAGE_1}"},
+    {"id": "SINGLE_STAGE_3", "prompt_template": "{ARTICLE}\n{QUESTION}\n{SINGLE_STAGE_1}\n{SINGLE_STAGE_2}"}
+  ]
+}
