@@ -24,7 +24,7 @@ never stores API-key values.
 1. Copy `config/halo_single.example.json` to `config/halo_single.json`.
 2. Paste the **complete, original** news article into `datasets/halo_article.txt`.
    The report only contains excerpts, so it is intentionally not reconstructed here.
-3. The supplied single-agent configuration fixes Gemini 3.6 Flash and its sampling values; keep them unchanged within a run.
+3. The supplied single-agent configuration fixes GPT-4.1 and its sampling values; keep them unchanged within a run.
 4. Set the environment variable named by `model.api_key_env`; do not put a key in a file.
 
 The stage prompts are the user's supplied prompts. The complete article is passed to all
@@ -62,6 +62,14 @@ python aggregate_results.py --run-dir results/<run-id> --labels results/<run-id>
 This creates `labeled_responses.jsonl`, `stage_summary.csv`, and
 `question_stage_summary.csv`. Repetitions are preserved, so rates and severity means are
 computed across repeated executions.
+
+## Single-agent ChatGPT condition
+
+The single-agent condition fixes all three supplied stages to the same model:
+`GPT-4.1 → GPT-4.1 → GPT-4.1`. Its batch configuration uses the complete article-pack
+dataset and preserves the original `SINGLE_STAGE_1/2/3` prompt texts. Run it from the
+**Run HALO single-agent ChatGPT experiment** GitHub Actions workflow; its default is a
+one-question smoke test and it saves one artifact per run.
 
 ## Multi-model condition
 
