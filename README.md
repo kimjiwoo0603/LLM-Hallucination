@@ -69,6 +69,8 @@ computed across repeated executions.
 `M1 (GPT-4.1) → M2 (Gemini 3.6 Flash) → M3 (GPT-4.1)`. The provided configuration
 uses the report's recommended roles—drafting, article-grounded verification, and final
 editing—and keeps provider API keys in environment variables.
+The free-tier Gemini Flash configuration spaces its Gemini calls 13 seconds apart to stay
+within the current per-minute request allowance.
 
 Article packs contain the article snapshot, its Ground Truth, and questions generated from
 that snapshot. `datasets/article_packs/manifest.jsonl` lists the packs to run, so one command
