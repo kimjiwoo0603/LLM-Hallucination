@@ -8,13 +8,13 @@ on:
         required: true
         default: "1"
       max_articles:
-        description: "Maximum number of articles (0 = all articles)"
+        description: "Maximum number of articles (0 = all articles; keep 1 for a test)"
         required: true
-        default: "0"
+        default: "1"
       max_questions_per_article:
-        description: "Maximum questions per article (0 = all questions)"
+        description: "Maximum questions per article (0 = all questions; keep 1 for a test)"
         required: true
-        default: "0"
+        default: "1"
 
 jobs:
   run:
