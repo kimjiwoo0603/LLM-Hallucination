@@ -1,0 +1,36 @@
+name: Run HALO multi-provider experiment
+
+on:
+  workflow_dispatch:
+    inputs:
+      repetitions:
+        description: Number of repetitions for every article-question pair
+        required: true
+        default: "1"
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Create run configuration
+        run: |
+          cp config/halo_multi.example.json config/halo_multi.json
+          python -c "import json; p='config/halo_multi.json'; d=json.load(open(p)); d['repetitions']=int('${{ inputs.repetitions }}'); open(p,'w').write(json.dumps(d, ensure_ascii=False, indent=2)+'\\n')"
+      - name: Run experiment
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python run_multi_experiment.py --config config/halo_multi.json --run-id github-${{ github.run_id }}
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: halo-results-${{ github.run_id }}
+          path: results/github-${{ github.run_id }}/
+
