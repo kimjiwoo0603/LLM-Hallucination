@@ -58,7 +58,9 @@ def run_batch(config_path: Path, output_root: Path, run_id: str, dry_run: bool) 
     records: list[dict[str, Any]] = []
     for pack_ref in packs:
         pack = read_json(project_path(config_path, pack_ref["dataset_path"]))
-        article = pack["article_text"]
+        article = pack.get("article_text")
+        if article is None:
+            article = project_path(config_path, pack["article_path"]).read_text(encoding="utf-8")
         for repetition in range(1, config["repetitions"] + 1):
             for question in pack["questions"]:
                 context = {"ARTICLE": article, "QUESTION": question["question"]}
@@ -72,3 +74,4 @@ def run_batch(config_path: Path, output_root: Path, run_id: str, dry_run: bool) 
     write_label_template(run_dir / "labels.template.csv", records)
     write_json(run_dir / "manifest.json", {"run_id": run_id, "created_at": utc_now(), "dry_run": dry_run, "dataset_manifest_path": config["dataset_manifest_path"], "agents": config["agents"]})
     return run_dir
+
