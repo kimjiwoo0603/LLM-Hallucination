@@ -5,6 +5,7 @@ import json
 import os
 import csv
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
@@ -126,6 +127,49 @@ class OpenAICompatibleClient:
             raise RuntimeError("Model response did not contain choices[0].message.content") from error
 
 
+class GeminiClient:
+    def __init__(self, model: dict[str, Any]):
+        self.model = model
+
+    def complete(self, prompt: str) -> str:
+        api_key_env = self.model.get("api_key_env")
+        if not api_key_env:
+            raise ValueError("model.api_key_env is required for a live run")
+        api_key = os.environ.get(api_key_env)
+        if not api_key:
+            raise RuntimeError(f"Environment variable {api_key_env} is not set")
+
+        api_base = self.model.get("api_base", "https://generativelanguage.googleapis.com/v1beta").rstrip("/")
+        generation_config = {
+            "temperature": self.model.get("temperature", 0),
+            "maxOutputTokens": self.model.get("max_tokens", 1000),
+        }
+        if "top_p" in self.model:
+            generation_config["topP"] = self.model["top_p"]
+        if "seed" in self.model:
+            generation_config["seed"] = self.model["seed"]
+        url = f"{api_base}/models/{self.model['name']}:generateContent?key={urllib.parse.quote(api_key)}"
+        payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": generation_config}
+        request = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=self.model.get("timeout_seconds", 120)) as response:
+                body = json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as error:
+            detail = error.read().decode("utf-8", errors="replace")
+            raise RuntimeError(f"Gemini request failed ({error.code}): {detail}") from error
+        except urllib.error.URLError as error:
+            raise RuntimeError(f"Gemini request could not be sent: {error.reason}") from error
+        try:
+            return body["candidates"][0]["content"]["parts"][0]["text"]
+        except (KeyError, IndexError, TypeError) as error:
+            raise RuntimeError("Gemini response did not contain candidates[0].content.parts[0].text") from error
+
+
 class DryRunClient:
     def complete(self, prompt: str) -> str:
         # Deliberately deterministic: useful only for pipeline verification, never for evaluation.
@@ -159,7 +203,12 @@ def execute(config_path: Path, output_root: Path, run_id: str, dry_run: bool = F
         raise FileExistsError(f"Run directory already exists: {run_dir}")
     run_dir.mkdir(parents=True)
 
-    client = DryRunClient() if dry_run else OpenAICompatibleClient(config["model"])
+    if dry_run:
+        client = DryRunClient()
+    elif config["model"].get("provider", "openai") == "gemini":
+        client = GeminiClient(config["model"])
+    else:
+        client = OpenAICompatibleClient(config["model"])
     frozen = frozen_config(config)
     frozen_text = json.dumps(frozen, ensure_ascii=False, sort_keys=True)
     manifest = {
@@ -206,3 +255,4 @@ def execute(config_path: Path, output_root: Path, run_id: str, dry_run: bool = F
     write_jsonl(run_dir / "responses.jsonl", records)
     write_label_template(run_dir / "labels.template.csv", records)
     return run_dir
+
