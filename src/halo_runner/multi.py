@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -14,6 +15,7 @@ from halo_runner.core import DryRunClient, read_json, read_jsonl, render_prompt,
 class ProviderClient:
     def __init__(self, spec: dict[str, Any]):
         self.spec = spec
+        self.last_request_started_at = 0.0
 
     def complete(self, prompt: str) -> str:
         key = os.environ.get(self.spec["api_key_env"])
@@ -38,6 +40,12 @@ class ProviderClient:
             text_path = ("candidates", 0, "content", "parts", 0, "text")
         else:
             raise ValueError(f"Unsupported provider: {provider}")
+        minimum_interval = float(self.spec.get("minimum_interval_seconds", 0))
+        if minimum_interval:
+            remaining = minimum_interval - (time.monotonic() - self.last_request_started_at)
+            if remaining > 0:
+                time.sleep(remaining)
+        self.last_request_started_at = time.monotonic()
         request = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
         try:
             with urllib.request.urlopen(request, timeout=self.spec.get("timeout_seconds", 120)) as response:
@@ -67,6 +75,7 @@ def run_batch(config_path: Path, output_root: Path, run_id: str, dry_run: bool) 
     run_dir = output_root / run_id
     run_dir.mkdir(parents=True, exist_ok=False)
     records: list[dict[str, Any]] = []
+    clients = {agent_id: ProviderClient(agent) for agent_id, agent in config["agents"].items()}
     for pack_ref in packs:
         pack = read_json(project_path(config_path, pack_ref["dataset_path"]))
         article = pack.get("article_text")
@@ -81,10 +90,11 @@ def run_batch(config_path: Path, output_root: Path, run_id: str, dry_run: bool) 
                 for stage in config["stages"]:
                     agent = config["agents"][stage["agent"]]
                     prompt = render_prompt(stage["prompt_template"], context, stage["id"])
-                    answer = DryRunClient().complete(prompt) if dry_run else ProviderClient(agent).complete(prompt)
+                    answer = DryRunClient().complete(prompt) if dry_run else clients[stage["agent"]].complete(prompt)
                     context[stage["id"]] = answer
                     records.append({"run_id": run_id, "generated_at": utc_now(), "article_id": pack["article_id"], "source_type": pack["source_type"], "repetition": repetition, "question_id": question["question_id"], "question_type": question["type"], "target_error": question["target_error"], "question": question["question"], "stage": stage["id"], "agent": stage["agent"], "provider": agent["provider"], "model": agent["model"], "response": answer, "prompt_sha256": sha256_text(prompt), "response_sha256": sha256_text(answer), "article_sha256": sha256_text(article), "status": "PENDING_MANUAL_LABEL"})
     write_jsonl(run_dir / "responses.jsonl", records)
     write_label_template(run_dir / "labels.template.csv", records)
     write_json(run_dir / "manifest.json", {"run_id": run_id, "created_at": utc_now(), "dry_run": dry_run, "dataset_manifest_path": config["dataset_manifest_path"], "max_articles": max_articles, "max_questions_per_article": max_questions, "agents": config["agents"]})
     return run_dir
+
