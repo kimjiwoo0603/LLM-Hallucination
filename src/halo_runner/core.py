@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import csv
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
@@ -43,6 +44,15 @@ def write_jsonl(path: Path, records: list[dict[str, Any]]) -> None:
     with path.open("w", encoding="utf-8", newline="\n") as handle:
         for record in records:
             handle.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
+
+
+def write_label_template(path: Path, records: list[dict[str, Any]]) -> None:
+    fields = ["question_id", "repetition", "stage", "hallucination", "severity", "propagation", "reviewer", "notes"]
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields)
+        writer.writeheader()
+        for record in records:
+            writer.writerow({key: record.get(key, "") for key in ("question_id", "repetition", "stage")})
 
 
 def resolve_project_path(config_path: Path, value: str) -> Path:
@@ -194,4 +204,5 @@ def execute(config_path: Path, output_root: Path, run_id: str, dry_run: bool = F
                     }
                 )
     write_jsonl(run_dir / "responses.jsonl", records)
+    write_label_template(run_dir / "labels.template.csv", records)
     return run_dir
