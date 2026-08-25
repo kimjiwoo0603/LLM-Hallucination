@@ -24,7 +24,7 @@ never stores API-key values.
 1. Copy `config/halo_single.example.json` to `config/halo_single.json`.
 2. Paste the **complete, original** news article into `datasets/halo_article.txt`.
    The report only contains excerpts, so it is intentionally not reconstructed here.
-3. Set one fixed model ID in `config/halo_single.json` and keep its sampling values fixed.
+3. The supplied single-agent configuration fixes Gemini 2.5 Pro and its sampling values; keep them unchanged within a run.
 4. Set the environment variable named by `model.api_key_env`; do not put a key in a file.
 
 The stage prompts are the user's supplied prompts. The complete article is passed to all
