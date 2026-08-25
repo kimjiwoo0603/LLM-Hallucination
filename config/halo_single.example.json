@@ -4,9 +4,10 @@
   "questions_path": "datasets/halo_pilot_questions.jsonl",
   "repetitions": 3,
   "model": {
-    "api_base": "https://api.openai.com/v1",
-    "api_key_env": "OPENAI_API_KEY",
-    "name": "REPLACE_WITH_FIXED_MODEL_ID",
+    "provider": "gemini",
+    "api_base": "https://generativelanguage.googleapis.com/v1beta",
+    "api_key_env": "GEMINI_API_KEY",
+    "name": "gemini-2.5-pro",
     "temperature": 0,
     "top_p": 1,
     "seed": 42,
@@ -28,3 +29,4 @@
     }
   ]
 }
+
