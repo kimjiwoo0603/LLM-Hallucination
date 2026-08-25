@@ -68,33 +68,44 @@ def run_batch(config_path: Path, output_root: Path, run_id: str, dry_run: bool) 
     packs = read_jsonl(project_path(config_path, config["dataset_manifest_path"]))
     max_articles = int(config.get("max_articles", 0))
     max_questions = int(config.get("max_questions_per_article", 0))
-    if max_articles < 0 or max_questions < 0:
-        raise ValueError("max_articles and max_questions_per_article must be zero or greater")
+    question_offset = int(config.get("question_offset", 0))
+    max_total_questions = int(config.get("max_total_questions", 0))
+    if min(max_articles, max_questions, question_offset, max_total_questions) < 0:
+        raise ValueError("run limits and question_offset must be zero or greater")
     if max_articles:
         packs = packs[:max_articles]
     run_dir = output_root / run_id
     run_dir.mkdir(parents=True, exist_ok=False)
-    records: list[dict[str, Any]] = []
-    clients = {agent_id: ProviderClient(agent) for agent_id, agent in config["agents"].items()}
+    work_items: list[tuple[dict[str, Any], str, dict[str, Any]]] = []
     for pack_ref in packs:
         pack = read_json(project_path(config_path, pack_ref["dataset_path"]))
         article = pack.get("article_text")
         if article is None:
             article = project_path(config_path, pack["article_path"]).read_text(encoding="utf-8")
+        questions = pack["questions"]
+        if max_questions:
+            questions = questions[:max_questions]
+        work_items.extend((pack, article, question) for question in questions)
+    if max_total_questions:
+        work_items = work_items[question_offset : question_offset + max_total_questions]
+    else:
+        work_items = work_items[question_offset:]
+
+    records: list[dict[str, Any]] = []
+    clients = {agent_id: ProviderClient(agent) for agent_id, agent in config["agents"].items()}
+    for pack, article, question in work_items:
         for repetition in range(1, config["repetitions"] + 1):
-            questions = pack["questions"]
-            if max_questions:
-                questions = questions[:max_questions]
-            for question in questions:
-                context = {"ARTICLE": article, "QUESTION": question["question"]}
-                for stage in config["stages"]:
-                    agent = config["agents"][stage["agent"]]
-                    prompt = render_prompt(stage["prompt_template"], context, stage["id"])
-                    answer = DryRunClient().complete(prompt) if dry_run else clients[stage["agent"]].complete(prompt)
-                    context[stage["id"]] = answer
-                    records.append({"run_id": run_id, "generated_at": utc_now(), "article_id": pack["article_id"], "source_type": pack["source_type"], "repetition": repetition, "question_id": question["question_id"], "question_type": question["type"], "target_error": question["target_error"], "question": question["question"], "stage": stage["id"], "agent": stage["agent"], "provider": agent["provider"], "model": agent["model"], "response": answer, "prompt_sha256": sha256_text(prompt), "response_sha256": sha256_text(answer), "article_sha256": sha256_text(article), "status": "PENDING_MANUAL_LABEL"})
+            context = {"ARTICLE": article, "QUESTION": question["question"]}
+            for stage in config["stages"]:
+                agent = config["agents"][stage["agent"]]
+                prompt = render_prompt(stage["prompt_template"], context, stage["id"])
+                answer = DryRunClient().complete(prompt) if dry_run else clients[stage["agent"]].complete(prompt)
+                context[stage["id"]] = answer
+                records.append({"run_id": run_id, "generated_at": utc_now(), "article_id": pack["article_id"], "source_type": pack["source_type"], "repetition": repetition, "question_id": question["question_id"], "question_type": question["type"], "target_error": question["target_error"], "question": question["question"], "stage": stage["id"], "agent": stage["agent"], "provider": agent["provider"], "model": agent["model"], "response": answer, "prompt_sha256": sha256_text(prompt), "response_sha256": sha256_text(answer), "article_sha256": sha256_text(article), "status": "PENDING_MANUAL_LABEL"})
+                write_jsonl(run_dir / "responses.jsonl", records)
+                write_label_template(run_dir / "labels.template.csv", records)
     write_jsonl(run_dir / "responses.jsonl", records)
     write_label_template(run_dir / "labels.template.csv", records)
-    write_json(run_dir / "manifest.json", {"run_id": run_id, "created_at": utc_now(), "dry_run": dry_run, "dataset_manifest_path": config["dataset_manifest_path"], "max_articles": max_articles, "max_questions_per_article": max_questions, "agents": config["agents"]})
+    write_json(run_dir / "manifest.json", {"run_id": run_id, "created_at": utc_now(), "dry_run": dry_run, "dataset_manifest_path": config["dataset_manifest_path"], "max_articles": max_articles, "max_questions_per_article": max_questions, "question_offset": question_offset, "max_total_questions": max_total_questions, "agents": config["agents"]})
     return run_dir
 
