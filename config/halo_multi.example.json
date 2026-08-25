@@ -3,7 +3,7 @@
   "repetitions": 3,
   "agents": {
     "M1": {"provider": "openai", "model": "gpt-4.1", "api_key_env": "OPENAI_API_KEY", "temperature": 0, "max_tokens": 1000},
-    "M2": {"provider": "gemini", "model": "gemini-3.1-pro-preview", "api_key_env": "GEMINI_API_KEY", "temperature": 0, "max_tokens": 1000},
+    "M2": {"provider": "gemini", "model": "gemini-2.5-flash", "api_key_env": "GEMINI_API_KEY", "temperature": 0, "max_tokens": 1000},
     "M3": {"provider": "openai", "model": "gpt-4.1", "api_key_env": "OPENAI_API_KEY", "temperature": 0, "max_tokens": 1000}
   },
   "stages": [
