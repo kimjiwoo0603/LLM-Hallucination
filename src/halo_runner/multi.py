@@ -53,6 +53,12 @@ def project_path(config_path: Path, raw: str) -> Path:
 def run_batch(config_path: Path, output_root: Path, run_id: str, dry_run: bool) -> Path:
     config = read_json(config_path)
     packs = read_jsonl(project_path(config_path, config["dataset_manifest_path"]))
+    max_articles = int(config.get("max_articles", 0))
+    max_questions = int(config.get("max_questions_per_article", 0))
+    if max_articles < 0 or max_questions < 0:
+        raise ValueError("max_articles and max_questions_per_article must be zero or greater")
+    if max_articles:
+        packs = packs[:max_articles]
     run_dir = output_root / run_id
     run_dir.mkdir(parents=True, exist_ok=False)
     records: list[dict[str, Any]] = []
@@ -62,7 +68,10 @@ def run_batch(config_path: Path, output_root: Path, run_id: str, dry_run: bool) 
         if article is None:
             article = project_path(config_path, pack["article_path"]).read_text(encoding="utf-8")
         for repetition in range(1, config["repetitions"] + 1):
-            for question in pack["questions"]:
+            questions = pack["questions"]
+            if max_questions:
+                questions = questions[:max_questions]
+            for question in questions:
                 context = {"ARTICLE": article, "QUESTION": question["question"]}
                 for stage in config["stages"]:
                     agent = config["agents"][stage["agent"]]
@@ -72,6 +81,5 @@ def run_batch(config_path: Path, output_root: Path, run_id: str, dry_run: bool) 
                     records.append({"run_id": run_id, "generated_at": utc_now(), "article_id": pack["article_id"], "source_type": pack["source_type"], "repetition": repetition, "question_id": question["question_id"], "question_type": question["type"], "target_error": question["target_error"], "question": question["question"], "stage": stage["id"], "agent": stage["agent"], "provider": agent["provider"], "model": agent["model"], "response": answer, "prompt_sha256": sha256_text(prompt), "response_sha256": sha256_text(answer), "article_sha256": sha256_text(article), "status": "PENDING_MANUAL_LABEL"})
     write_jsonl(run_dir / "responses.jsonl", records)
     write_label_template(run_dir / "labels.template.csv", records)
-    write_json(run_dir / "manifest.json", {"run_id": run_id, "created_at": utc_now(), "dry_run": dry_run, "dataset_manifest_path": config["dataset_manifest_path"], "agents": config["agents"]})
+    write_json(run_dir / "manifest.json", {"run_id": run_id, "created_at": utc_now(), "dry_run": dry_run, "dataset_manifest_path": config["dataset_manifest_path"], "max_articles": max_articles, "max_questions_per_article": max_questions, "agents": config["agents"]})
     return run_dir
-
