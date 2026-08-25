@@ -91,6 +91,7 @@ def run_batch(config_path: Path, output_root: Path, run_id: str, dry_run: bool) 
     else:
         work_items = work_items[question_offset:]
 
+    write_json(run_dir / "manifest.json", {"run_id": run_id, "created_at": utc_now(), "dry_run": dry_run, "dataset_manifest_path": config["dataset_manifest_path"], "max_articles": max_articles, "max_questions_per_article": max_questions, "question_offset": question_offset, "max_total_questions": max_total_questions, "selected_question_count": len(work_items), "agents": config["agents"]})
     records: list[dict[str, Any]] = []
     clients = {agent_id: ProviderClient(agent) for agent_id, agent in config["agents"].items()}
     for pack, article, question in work_items:
@@ -106,6 +107,5 @@ def run_batch(config_path: Path, output_root: Path, run_id: str, dry_run: bool) 
                 write_label_template(run_dir / "labels.template.csv", records)
     write_jsonl(run_dir / "responses.jsonl", records)
     write_label_template(run_dir / "labels.template.csv", records)
-    write_json(run_dir / "manifest.json", {"run_id": run_id, "created_at": utc_now(), "dry_run": dry_run, "dataset_manifest_path": config["dataset_manifest_path"], "max_articles": max_articles, "max_questions_per_article": max_questions, "question_offset": question_offset, "max_total_questions": max_total_questions, "agents": config["agents"]})
     return run_dir
 
