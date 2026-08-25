@@ -1,0 +1,82 @@
+[
+  {
+    "article_id": "A001",
+    "source_type": "news_article",
+    "title": "아시아 수영장은 좁다",
+    "source_snapshot": "datasets/raw/2026-08-26-user-provided-corpus.txt",
+    "question_pack": "datasets/article_packs/A001.json",
+    "status": "generated"
+  },
+  {
+    "article_id": "A002",
+    "source_type": "news_article",
+    "title": "‘민주당 당원 가입’ 신천지 간부 재판행",
+    "source_snapshot": "datasets/raw/2026-08-26-user-provided-corpus.txt",
+    "question_pack": "datasets/article_packs/A002.json",
+    "status": "pending_source_only_generation"
+  },
+  {
+    "article_id": "A003",
+    "source_type": "news_article",
+    "title": "서울로봇인공지능과학관, 개관 후 36만8천명 방문",
+    "source_snapshot": "datasets/raw/2026-08-26-user-provided-corpus.txt",
+    "question_pack": "datasets/article_packs/A003.json",
+    "status": "pending_source_only_generation"
+  },
+  {
+    "article_id": "A004",
+    "source_type": "legal_source",
+    "title": "자원의 절약과 재활용촉진에 관한 법률 제16조",
+    "source_snapshot": "datasets/raw/2026-08-26-user-provided-corpus.txt",
+    "question_pack": "datasets/article_packs/A004.json",
+    "status": "pending_source_only_generation"
+  },
+  {
+    "article_id": "A005",
+    "source_type": "news_article",
+    "title": "선관위 내부망 보안점검 관련 법정 증언",
+    "source_snapshot": "datasets/raw/2026-08-26-user-provided-corpus.txt",
+    "question_pack": "datasets/article_packs/A005.json",
+    "status": "pending_source_only_generation"
+  },
+  {
+    "article_id": "A006",
+    "source_type": "news_article",
+    "title": "중국 관광지 거북이 탑승 논란",
+    "source_snapshot": "datasets/raw/2026-08-26-user-provided-corpus.txt",
+    "question_pack": "datasets/article_packs/A006.json",
+    "status": "pending_source_only_generation"
+  },
+  {
+    "article_id": "A007",
+    "source_type": "news_article",
+    "title": "SK하이닉스 노조 현금 성과급 요구",
+    "source_snapshot": "datasets/raw/2026-08-26-user-provided-corpus.txt",
+    "question_pack": "datasets/article_packs/A007.json",
+    "status": "pending_source_only_generation"
+  },
+  {
+    "article_id": "A008",
+    "source_type": "news_article",
+    "title": "프로그램 순매도와 코스피 낙폭",
+    "source_snapshot": "datasets/raw/2026-08-26-user-provided-corpus.txt",
+    "question_pack": "datasets/article_packs/A008.json",
+    "status": "pending_source_only_generation"
+  },
+  {
+    "article_id": "A009",
+    "source_type": "news_article",
+    "title": "예상보다 빠른 음식 배달 갈등",
+    "source_snapshot": "datasets/raw/2026-08-26-user-provided-corpus.txt",
+    "question_pack": "datasets/article_packs/A009.json",
+    "status": "pending_source_only_generation"
+  },
+  {
+    "article_id": "A010",
+    "source_type": "news_article",
+    "title": "경산경찰서 임의동행 지시 의혹",
+    "source_snapshot": "datasets/raw/2026-08-26-user-provided-corpus.txt",
+    "question_pack": "datasets/article_packs/A010.json",
+    "status": "pending_source_only_generation"
+  }
+]
