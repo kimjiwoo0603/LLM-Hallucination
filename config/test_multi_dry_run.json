@@ -1,0 +1,1 @@
+{"dataset_manifest_path":"tests/multi_manifest.jsonl","repetitions":1,"agents":{"M1":{"provider":"openai","model":"not-used","api_key_env":"NO_KEY","temperature":0,"max_tokens":10}},"stages":[{"id":"MULTI_STAGE_1","agent":"M1","prompt_template":"{ARTICLE} {QUESTION}"}]}
