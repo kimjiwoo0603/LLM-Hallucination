@@ -82,7 +82,11 @@ def run_batch(config_path: Path, output_root: Path, run_id: str, dry_run: bool) 
         article = pack.get("article_text")
         if article is None:
             article = project_path(config_path, pack["article_path"]).read_text(encoding="utf-8")
-        questions = pack["questions"]
+        questions = (
+            read_jsonl(project_path(config_path, pack_ref["questions_path"]))
+            if "questions_path" in pack_ref
+            else pack["questions"]
+        )
         if max_questions:
             questions = questions[:max_questions]
         work_items.extend((pack, article, question) for question in questions)
@@ -102,7 +106,7 @@ def run_batch(config_path: Path, output_root: Path, run_id: str, dry_run: bool) 
                 prompt = render_prompt(stage["prompt_template"], context, stage["id"])
                 answer = DryRunClient().complete(prompt) if dry_run else clients[stage["agent"]].complete(prompt)
                 context[stage["id"]] = answer
-                records.append({"run_id": run_id, "generated_at": utc_now(), "article_id": pack["article_id"], "source_type": pack["source_type"], "repetition": repetition, "question_id": question["question_id"], "question_type": question["type"], "target_error": question["target_error"], "question": question["question"], "stage": stage["id"], "agent": stage["agent"], "provider": agent["provider"], "model": agent["model"], "response": answer, "prompt_sha256": sha256_text(prompt), "response_sha256": sha256_text(answer), "article_sha256": sha256_text(article), "status": "PENDING_MANUAL_LABEL"})
+                records.append({"run_id": run_id, "generated_at": utc_now(), "article_id": pack["article_id"], "source_type": pack["source_type"], "repetition": repetition, "question_id": question["question_id"], "question_type": question["type"], "question_condition": question.get("condition", "BASELINE"), "induction_strategy": question.get("induction_strategy"), "source_question_id": question.get("source_question_id"), "target_error": question["target_error"], "question": question["question"], "stage": stage["id"], "agent": stage["agent"], "provider": agent["provider"], "model": agent["model"], "response": answer, "prompt_sha256": sha256_text(prompt), "response_sha256": sha256_text(answer), "article_sha256": sha256_text(article), "status": "PENDING_MANUAL_LABEL"})
                 write_jsonl(run_dir / "responses.jsonl", records)
                 write_label_template(run_dir / "labels.template.csv", records)
     write_jsonl(run_dir / "responses.jsonl", records)
