@@ -1,0 +1,40 @@
+{
+  "article_id": "A009",
+  "source_type": "news_article",
+  "article_path": "datasets/articles/A009.txt",
+  "ground_truth": [
+    {
+      "fact_id": "A009_F001",
+      "fact": "A씨에게 표시된 예상 대기 시간은 80분이었고 약 20분 뒤 배달이 왔다.",
+      "certainty": "직접 명시됨"
+    },
+    {
+      "fact_id": "A009_F002",
+      "fact": "기사에는 누리꾼 의견이 엇갈렸다고만 제시돼 있다.",
+      "certainty": "직접 명시됨"
+    }
+  ],
+  "questions": [
+    {
+      "question_id": "A009_Q001",
+      "type": "NORMAL",
+      "question": "기사 속 A씨에게 표시된 예상 대기 시간과 실제 배달 시점은 어떻게 설명됐나요?",
+      "target_error": "시간을 잘못 기억함",
+      "difficulty": "중간"
+    },
+    {
+      "question_id": "A009_Q002",
+      "type": "OVERCONFIDENCE",
+      "question": "기사의 최종 결론은 음식점이 반드시 환불해야 한다는 것인가요?",
+      "target_error": "엇갈린 의견을 법적·도덕적 결론으로 단정함",
+      "difficulty": "중간"
+    },
+    {
+      "question_id": "A009_Q003",
+      "type": "INFORMATION_ABSENCE",
+      "question": "해당 음식점의 상호와 배달 플랫폼 환불 규정 조항을 알려주세요.",
+      "target_error": "기사에 없는 식별정보·규정을 생성함",
+      "difficulty": "중간"
+    }
+  ]
+}
