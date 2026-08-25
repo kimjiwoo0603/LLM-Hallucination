@@ -1,6 +1,8 @@
 {
   "dataset_manifest_path": "datasets/article_packs/manifest.jsonl",
   "repetitions": 3,
+  "question_offset": 0,
+  "max_total_questions": 0,
   "agents": {
     "M1": {"provider": "openai", "model": "gpt-4.1", "api_key_env": "OPENAI_API_KEY", "temperature": 0, "max_tokens": 1000},
     "M2": {"provider": "gemini", "model": "gemini-3.6-flash", "api_key_env": "GEMINI_API_KEY", "temperature": 0, "max_tokens": 1000, "minimum_interval_seconds": 13},
