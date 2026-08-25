@@ -24,7 +24,7 @@ never stores API-key values.
 1. Copy `config/halo_single.example.json` to `config/halo_single.json`.
 2. Paste the **complete, original** news article into `datasets/halo_article.txt`.
    The report only contains excerpts, so it is intentionally not reconstructed here.
-3. The supplied single-agent configuration fixes Gemini 2.5 Flash and its sampling values; keep them unchanged within a run.
+3. The supplied single-agent configuration fixes Gemini 3.6 Flash and its sampling values; keep them unchanged within a run.
 4. Set the environment variable named by `model.api_key_env`; do not put a key in a file.
 
 The stage prompts are the user's supplied prompts. The complete article is passed to all
@@ -66,7 +66,7 @@ computed across repeated executions.
 ## Multi-model condition
 
 `run_multi_experiment.py` runs a separately configured three-provider condition:
-`M1 (GPT-4.1) → M2 (Gemini 2.5 Flash) → M3 (GPT-4.1)`. The provided configuration
+`M1 (GPT-4.1) → M2 (Gemini 3.6 Flash) → M3 (GPT-4.1)`. The provided configuration
 uses the report's recommended roles—drafting, article-grounded verification, and final
 editing—and keeps provider API keys in environment variables.
 
