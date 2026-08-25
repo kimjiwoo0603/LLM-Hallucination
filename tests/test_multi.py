@@ -7,10 +7,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from halo_runner.multi import run_batch
+from halo_runner.multi import retry_delay_seconds, run_batch
 
 
 class MultiRunnerTests(unittest.TestCase):
+    def test_rate_limit_retry_delay_uses_provider_hint(self):
+        self.assertEqual(retry_delay_seconds("Please try again in 977ms.", 0), 1.0)
+        self.assertEqual(retry_delay_seconds("Try again in 2.5s.", 0), 2.5)
+
     def test_external_high_pressure_question_set_is_recorded(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
