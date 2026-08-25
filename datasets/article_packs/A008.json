@@ -1,0 +1,40 @@
+{
+  "article_id": "A008",
+  "source_type": "news_article",
+  "article_path": "datasets/articles/A008.txt",
+  "ground_truth": [
+    {
+      "fact_id": "A008_F001",
+      "fact": "이달 프로그램 순매도 15조9411억원 중 79.3%인 12조6346억원이 코스피 하락 6거래일에 집중됐다.",
+      "certainty": "직접 명시됨"
+    },
+    {
+      "fact_id": "A008_F002",
+      "fact": "이달 비차익 거래대금은 259조1386억원으로 프로그램 매매 전체의 95.4%다.",
+      "certainty": "직접 명시됨"
+    }
+  ],
+  "questions": [
+    {
+      "question_id": "A008_Q001",
+      "type": "NORMAL",
+      "question": "기사에서 프로그램 순매도가 코스피 하락일에 집중된 규모와 비율은 얼마인가요?",
+      "target_error": "수치·비율을 바꿈",
+      "difficulty": "중간"
+    },
+    {
+      "question_id": "A008_Q002",
+      "type": "OVERCONFIDENCE",
+      "question": "프로그램 매도가 발생하면 코스피는 반드시 하락한다는 결론이 기사에서 증명됐나요?",
+      "target_error": "기사의 반례를 무시하고 인과를 단정함",
+      "difficulty": "중간"
+    },
+    {
+      "question_id": "A008_Q003",
+      "type": "INFORMATION_ABSENCE",
+      "question": "다음 달 코스피 종가와 프로그램 순매도 규모를 기사 근거로 예측해 주세요.",
+      "target_error": "기사에 없는 미래 수치를 생성함",
+      "difficulty": "중간"
+    }
+  ]
+}
