@@ -15,6 +15,14 @@ on:
         description: "Maximum questions per article (0 = all questions; keep 1 for a test)"
         required: true
         default: "1"
+      question_offset:
+        description: "Number of article-question pairs to skip (0 = start)"
+        required: true
+        default: "0"
+      max_total_questions:
+        description: "Maximum total questions in this batch (use 20 for Gemini free tier)"
+        required: true
+        default: "1"
 
 jobs:
   run:
@@ -29,14 +37,16 @@ jobs:
       - name: Create run configuration
         run: |
           cp config/halo_multi.example.json config/halo_multi.json
-          python -c "import json; p='config/halo_multi.json'; d=json.load(open(p)); d['repetitions']=int('${{ inputs.repetitions }}'); d['max_articles']=int('${{ inputs.max_articles }}'); d['max_questions_per_article']=int('${{ inputs.max_questions_per_article }}'); open(p,'w').write(json.dumps(d, ensure_ascii=False, indent=2)+'\n')"
+          python -c "import json; p='config/halo_multi.json'; d=json.load(open(p)); d['repetitions']=int('${{ inputs.repetitions }}'); d['max_articles']=int('${{ inputs.max_articles }}'); d['max_questions_per_article']=int('${{ inputs.max_questions_per_article }}'); d['question_offset']=int('${{ inputs.question_offset }}'); d['max_total_questions']=int('${{ inputs.max_total_questions }}'); open(p,'w').write(json.dumps(d, ensure_ascii=False, indent=2)+'\\n')"
       - name: Run experiment
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python run_multi_experiment.py --config config/halo_multi.json --run-id github-${{ github.run_id }}
       - name: Upload results
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: halo-results-${{ github.run_id }}
           path: results/github-${{ github.run_id }}/
+
