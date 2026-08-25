@@ -71,6 +71,9 @@ uses the report's recommended roles—drafting, article-grounded verification, a
 editing—and keeps provider API keys in environment variables.
 The free-tier Gemini Flash configuration spaces its Gemini calls 13 seconds apart to stay
 within the current per-minute request allowance.
+Its daily free allowance is 20 requests, so run the full 33-question dataset in two batches:
+first `question_offset=0, max_total_questions=20`, then, on the following daily quota window,
+`question_offset=20, max_total_questions=20`.
 
 Article packs contain the article snapshot, its Ground Truth, and questions generated from
 that snapshot. `datasets/article_packs/manifest.jsonl` lists the packs to run, so one command
