@@ -1,0 +1,5 @@
+[PASTE THE EXACT ARTICLE TEXT HERE BEFORE A LIVE RUN]
+
+The pilot report and the dataset contain excerpts, not a complete source article. Keeping
+this file empty avoids silently converting an excerpt or a model-generated summary into
+the experiment's evidence source.
