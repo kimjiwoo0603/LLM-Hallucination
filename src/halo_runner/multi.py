@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 import urllib.error
 import urllib.parse
@@ -10,6 +11,14 @@ from pathlib import Path
 from typing import Any
 
 from halo_runner.core import DryRunClient, read_json, read_jsonl, render_prompt, sha256_text, utc_now, write_json, write_jsonl, write_label_template
+
+
+def retry_delay_seconds(detail: str, attempt: int) -> float:
+    match = re.search(r"try again in\s+([0-9.]+)\s*(ms|s)(?:\b|$)", detail, flags=re.IGNORECASE)
+    if match:
+        value = float(match.group(1))
+        return max(1.0, value / 1000 if match.group(2) == "ms" else value)
+    return min(60.0, 2.0**attempt)
 
 
 class ProviderClient:
@@ -47,12 +56,18 @@ class ProviderClient:
                 time.sleep(remaining)
         self.last_request_started_at = time.monotonic()
         request = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
-        try:
-            with urllib.request.urlopen(request, timeout=self.spec.get("timeout_seconds", 120)) as response:
-                body: Any = json.loads(response.read().decode("utf-8"))
-        except urllib.error.HTTPError as error:
-            detail = error.read().decode("utf-8", errors="replace")
-            raise RuntimeError(f"{provider} API request failed (HTTP {error.code}): {detail}") from error
+        max_rate_limit_retries = int(self.spec.get("max_rate_limit_retries", 20))
+        for attempt in range(max_rate_limit_retries + 1):
+            try:
+                with urllib.request.urlopen(request, timeout=self.spec.get("timeout_seconds", 120)) as response:
+                    body: Any = json.loads(response.read().decode("utf-8"))
+                break
+            except urllib.error.HTTPError as error:
+                detail = error.read().decode("utf-8", errors="replace")
+                if error.code == 429 and attempt < max_rate_limit_retries:
+                    time.sleep(retry_delay_seconds(detail, attempt))
+                    continue
+                raise RuntimeError(f"{provider} API request failed (HTTP {error.code}): {detail}") from error
         for part in text_path:
             body = body[part]
         return body
@@ -97,7 +112,11 @@ def run_batch(config_path: Path, output_root: Path, run_id: str, dry_run: bool) 
 
     write_json(run_dir / "manifest.json", {"run_id": run_id, "created_at": utc_now(), "dry_run": dry_run, "dataset_manifest_path": config["dataset_manifest_path"], "max_articles": max_articles, "max_questions_per_article": max_questions, "question_offset": question_offset, "max_total_questions": max_total_questions, "selected_question_count": len(work_items), "agents": config["agents"]})
     records: list[dict[str, Any]] = []
-    clients = {agent_id: ProviderClient(agent) for agent_id, agent in config["agents"].items()}
+    shared_clients: dict[str, ProviderClient] = {}
+    clients: dict[str, ProviderClient] = {}
+    for agent_id, agent in config["agents"].items():
+        client_key = json.dumps(agent, sort_keys=True)
+        clients[agent_id] = shared_clients.setdefault(client_key, ProviderClient(agent))
     for pack, article, question in work_items:
         for repetition in range(1, config["repetitions"] + 1):
             context = {"ARTICLE": article, "QUESTION": question["question"]}
