@@ -66,7 +66,7 @@ computed across repeated executions.
 ## Multi-model condition
 
 `run_multi_experiment.py` runs a separately configured three-provider condition:
-`M1 (GPT-4.1) → M2 (Claude Sonnet) → M3 (Gemini 2.5 Pro)`. The provided configuration
+`M1 (GPT-4.1) → M2 (Gemini 2.5 Pro) → M3 (GPT-4.1)`. The provided configuration
 uses the report's recommended roles—drafting, article-grounded verification, and final
 editing—and keeps provider API keys in environment variables.
 
