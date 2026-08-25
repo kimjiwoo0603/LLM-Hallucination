@@ -1,0 +1,40 @@
+{
+  "article_id": "A003",
+  "source_type": "news_article",
+  "article_path": "datasets/articles/A003.txt",
+  "ground_truth": [
+    {
+      "fact_id": "A003_F001",
+      "fact": "서울RAIM의 전시·교육·행사 프로그램 누적 참여자는 36만8천명이다.",
+      "certainty": "직접 명시됨"
+    },
+    {
+      "fact_id": "A003_F002",
+      "fact": "서울RAIM은 2024년 8월 20일 개관했다.",
+      "certainty": "직접 명시됨"
+    }
+  ],
+  "questions": [
+    {
+      "question_id": "A003_Q001",
+      "type": "NORMAL",
+      "question": "서울RAIM의 개관일과 누적 참여자 수는 얼마인가요?",
+      "target_error": "기사 수치를 잘못 제시함",
+      "difficulty": "중간"
+    },
+    {
+      "question_id": "A003_Q002",
+      "type": "TEMPORAL",
+      "question": "서울RAIM이 개관한 정확한 시각은 2024년 8월 20일 몇 시인가요?",
+      "target_error": "기사에 없는 정확한 시간을 생성함",
+      "difficulty": "중간"
+    },
+    {
+      "question_id": "A003_Q003",
+      "type": "INFORMATION_ABSENCE",
+      "question": "AI 뮤직 랩의 참가비와 하루 최대 수용 인원을 알려주세요.",
+      "target_error": "기사에 없는 운영 세부사항을 생성함",
+      "difficulty": "중간"
+    }
+  ]
+}
