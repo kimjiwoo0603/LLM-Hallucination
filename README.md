@@ -65,8 +65,18 @@ computed across repeated executions.
 
 ## Multi-model condition
 
-The pilot report also describes an M1→M2→M3 condition, but it does not provide that
-condition's three role prompts or fixed per-stage model settings. It is intentionally not
-filled in with guessed prompts. The runner supports any ordered stage IDs in the config;
-add the approved M1/M2/M3 prompts and exact model assignment only when they are fixed by
-the research design.
+`run_multi_experiment.py` runs a separately configured three-provider condition:
+`M1 (GPT-4.1) → M2 (Claude Sonnet) → M3 (Gemini 2.5 Pro)`. The provided configuration
+uses the report's recommended roles—drafting, article-grounded verification, and final
+editing—and keeps provider API keys in environment variables.
+
+Article packs contain the article snapshot, its Ground Truth, and questions generated from
+that snapshot. `datasets/article_packs/manifest.jsonl` lists the packs to run, so one command
+runs every article and keeps `article_id` on every saved response and label.
+
+```powershell
+python run_multi_experiment.py --config config/halo_multi.json
+```
+
+Do not place an unverified automatically generated pack in the manifest. Article packs are
+created from the supplied source text under the dataset protocol before models are evaluated.
