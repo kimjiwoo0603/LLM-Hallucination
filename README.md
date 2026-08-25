@@ -43,8 +43,8 @@ For a no-cost pipeline check, use `--dry-run` after pasting the article:
 python run_experiment.py --config config/halo_single.json --dry-run --run-id smoke-test
 ```
 
-Each run creates `results/<run-id>/responses.jsonl`, `manifest.json`, and
-`config.snapshot.json`.
+Each run creates `results/<run-id>/responses.jsonl`, `labels.template.csv`,
+`manifest.json`, and `config.snapshot.json`.
 
 ## Label and aggregate
 
@@ -52,11 +52,11 @@ The report labels each response manually as `Hallucination (0/1)`, `Severity (0�
 `Propagation (Initial/Maintained/Removed/None)`. The runner deliberately leaves that
 judgment as `PENDING_MANUAL_LABEL`; it does not invent a ground-truth verdict.
 
-Create a label CSV from `labels/labels.template.csv`, with one row per
-`question_id × repetition × stage`, then run:
+The run already creates `labels.template.csv` with one row per
+`question_id × repetition × stage`; fill in its five label columns, then run:
 
 ```powershell
-python aggregate_results.py --run-dir results/<run-id> --labels labels/<run-id>.csv
+python aggregate_results.py --run-dir results/<run-id> --labels results/<run-id>/labels.template.csv
 ```
 
 This creates `labeled_responses.jsonl`, `stage_summary.csv`, and
