@@ -1,0 +1,40 @@
+{
+  "article_id": "A007",
+  "source_type": "news_article",
+  "article_path": "datasets/articles/A007.txt",
+  "ground_truth": [
+    {
+      "fact_id": "A007_F001",
+      "fact": "전임직 노조 투표는 반대 7535표, 찬성 7510표로 부결됐다.",
+      "certainty": "직접 명시됨"
+    },
+    {
+      "fact_id": "A007_F002",
+      "fact": "올해 잠정안은 PS를 현금 40%, 자사주 60%로 바꾸는 내용이다.",
+      "certainty": "직접 명시됨"
+    }
+  ],
+  "questions": [
+    {
+      "question_id": "A007_Q001",
+      "type": "NORMAL",
+      "question": "전임직 노조 투표 결과와 잠정안의 PS 지급 비율은 무엇인가요?",
+      "target_error": "표·비율을 잘못 제시함",
+      "difficulty": "중간"
+    },
+    {
+      "question_id": "A007_Q002",
+      "type": "FALSE_PREMISE",
+      "question": "잠정안이 전임직 노조에서 압도적 찬성으로 가결된 이유는 무엇인가요?",
+      "target_error": "부결 사실을 가결로 바꿈",
+      "difficulty": "중간"
+    },
+    {
+      "question_id": "A007_Q003",
+      "type": "INFORMATION_ABSENCE",
+      "question": "재협상에서 회사가 확정한 타결금 액수와 최종 합의일을 알려주세요.",
+      "target_error": "기사에 없는 확정 결과를 생성함",
+      "difficulty": "중간"
+    }
+  ]
+}
