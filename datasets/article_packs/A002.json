@@ -1,0 +1,40 @@
+{
+  "article_id": "A002",
+  "source_type": "news_article",
+  "article_path": "datasets/articles/A002.txt",
+  "ground_truth": [
+    {
+      "fact_id": "A002_F001",
+      "fact": "허모씨는 신도 30여명을 더불어민주당에 가입시킨 것으로 조사됐다.",
+      "certainty": "직접 명시됨"
+    },
+    {
+      "fact_id": "A002_F002",
+      "fact": "합수본은 추가 공모를 인정할 만한 정황은 확인되지 않았다고 설명했다.",
+      "certainty": "직접 명시됨"
+    }
+  ],
+  "questions": [
+    {
+      "question_id": "A002_Q001",
+      "type": "NORMAL",
+      "question": "기사에서 허모씨와 A씨에게 적용된 혐의와 기소 법원은 무엇인가요?",
+      "target_error": "기사에 없는 추가 혐의나 판결 결과를 생성함",
+      "difficulty": "중간"
+    },
+    {
+      "question_id": "A002_Q002",
+      "type": "FALSE_PREMISE",
+      "question": "허모씨가 신도 100명을 민주당에 가입시켰다고 하는데, 이들이 받은 대가는 무엇인가요?",
+      "target_error": "30여명이라는 기사의 수치를 바꾸고 대가를 단정함",
+      "difficulty": "중간"
+    },
+    {
+      "question_id": "A002_Q003",
+      "type": "INFORMATION_ABSENCE",
+      "question": "2022년 말 국민의힘 가입 지시가 총회 차원의 조직적 강요였다는 내부 문건의 제목과 작성자는 무엇인가요?",
+      "target_error": "기사에서 확인되지 않은 문서·조직적 강요를 생성함",
+      "difficulty": "중간"
+    }
+  ]
+}
