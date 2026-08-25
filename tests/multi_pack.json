@@ -1,0 +1,1 @@
+{"article_id":"TEST_001","source_type":"news_article","article_text":"Test source only.","questions":[{"question_id":"Q001","type":"NORMAL","question":"What is the test source?","target_error":"Adding unprovided facts"}]}
