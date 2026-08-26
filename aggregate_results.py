@@ -17,27 +17,50 @@ from halo_runner.core import read_jsonl, write_jsonl  # noqa: E402
 REQUIRED_LABEL_COLUMNS = {
     "question_id", "repetition", "stage", "hallucination", "severity", "propagation", "reviewer", "notes"
 }
+REQUIRED_BLIND_LABEL_COLUMNS = {"blind_id", "hallucination", "severity", "propagation", "reviewer", "notes"}
 
 
-def read_labels(path: Path) -> dict[tuple[str, int, str], dict[str, str]]:
+def validate_label_values(row: dict[str, str], line_number: int) -> None:
+    if row["hallucination"] not in {"0", "1"}:
+        raise ValueError(f"hallucination must be 0 or 1 at CSV line {line_number}")
+    severity = int(row["severity"])
+    if not 0 <= severity <= 5:
+        raise ValueError(f"severity must be 0..5 at CSV line {line_number}")
+    if row["propagation"] not in {"Initial", "Maintained", "Removed", "None"}:
+        raise ValueError(f"Invalid propagation at CSV line {line_number}")
+
+
+def read_labels(path: Path) -> tuple[str, dict[Any, dict[str, str]]]:
     with path.open("r", encoding="utf-8-sig", newline="") as handle:
         reader = csv.DictReader(handle)
-        if not reader.fieldnames or not REQUIRED_LABEL_COLUMNS.issubset(reader.fieldnames):
-            raise ValueError("Label CSV has missing columns; start from labels/labels.template.csv")
-        labels: dict[tuple[str, int, str], dict[str, str]] = {}
+        if not reader.fieldnames:
+            raise ValueError("Label CSV has no header")
+        blind_mode = REQUIRED_BLIND_LABEL_COLUMNS.issubset(reader.fieldnames)
+        if not blind_mode and not REQUIRED_LABEL_COLUMNS.issubset(reader.fieldnames):
+            raise ValueError("Label CSV has missing columns; start from labels.template.csv or blind_labels.template.csv")
+        labels: dict[Any, dict[str, str]] = {}
         for line_number, row in enumerate(reader, start=2):
-            key = (row["question_id"], int(row["repetition"]), row["stage"])
+            key: Any = row["blind_id"] if blind_mode else (row["question_id"], int(row["repetition"]), row["stage"])
             if key in labels:
                 raise ValueError(f"Duplicate label at CSV line {line_number}: {key}")
-            if row["hallucination"] not in {"0", "1"}:
-                raise ValueError(f"hallucination must be 0 or 1 at CSV line {line_number}")
-            severity = int(row["severity"])
-            if not 0 <= severity <= 5:
-                raise ValueError(f"severity must be 0..5 at CSV line {line_number}")
-            if row["propagation"] not in {"Initial", "Maintained", "Removed", "None"}:
-                raise ValueError(f"Invalid propagation at CSV line {line_number}")
+            validate_label_values(row, line_number)
             labels[key] = row
-    return labels
+    return ("blind" if blind_mode else "standard"), labels
+
+
+def read_blind_key(path: Path) -> dict[tuple[str, str, int, str], str]:
+    required = {"blind_id", "article_id", "question_id", "repetition", "stage"}
+    with path.open("r", encoding="utf-8-sig", newline="") as handle:
+        reader = csv.DictReader(handle)
+        if not reader.fieldnames or not required.issubset(reader.fieldnames):
+            raise ValueError("Blind key CSV has missing columns; use blind_key.coordinator_only.csv")
+        lookup: dict[tuple[str, str, int, str], str] = {}
+        for line_number, row in enumerate(reader, start=2):
+            key = (row["article_id"], row["question_id"], int(row["repetition"]), row["stage"])
+            if key in lookup:
+                raise ValueError(f"Duplicate blind-key row at CSV line {line_number}: {key}")
+            lookup[key] = row["blind_id"]
+    return lookup
 
 
 def write_summary(path: Path, rows: list[dict[str, Any]]) -> None:
@@ -79,14 +102,19 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--run-dir", type=Path, required=True)
     parser.add_argument("--labels", type=Path, required=True)
+    parser.add_argument("--blind-key", type=Path, help="Required when --labels is a blind_labels.template.csv file")
     args = parser.parse_args()
     run_dir = args.run_dir.resolve()
     records = read_jsonl(run_dir / "responses.jsonl")
-    labels = read_labels(args.labels.resolve())
+    label_mode, labels = read_labels(args.labels.resolve())
+    if label_mode == "blind" and not args.blind_key:
+        raise ValueError("--blind-key is required for blinded labels")
+    blind_lookup = read_blind_key(args.blind_key.resolve()) if label_mode == "blind" and args.blind_key else {}
     joined: list[dict[str, Any]] = []
     for record in records:
-        key = (record["question_id"], record["repetition"], record["stage"])
-        label = labels.get(key)
+        standard_key = (record["question_id"], record["repetition"], record["stage"])
+        blind_id = blind_lookup.get((record.get("article_id", "ARTICLE_001"), *standard_key)) if label_mode == "blind" else None
+        label = labels.get(blind_id) if label_mode == "blind" else labels.get(standard_key)
         if label:
             record = {
                 **record,
@@ -107,3 +135,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
