@@ -47,6 +47,21 @@ class MultiRunnerTests(unittest.TestCase):
             self.assertIn("{MULTI_STAGE_2_SUPPORTED}", editor)
             self.assertNotIn("{MULTI_STAGE_1}", editor)
 
+    def test_raw_passthrough_ablation_differs_only_in_m3_input_policy(self):
+        gated = json.loads((ROOT / "config" / "halo_multi_same_model.example.json").read_text(encoding="utf-8"))
+        raw = json.loads((ROOT / "config" / "halo_multi_same_model_raw.example.json").read_text(encoding="utf-8"))
+        raw_high_pressure = json.loads((ROOT / "config" / "halo_multi_same_model_raw_high_pressure.example.json").read_text(encoding="utf-8"))
+        constraint = "기사에서 확인할 수 없는 정보는 임의로 추가하지 마세요.\n기사에 구체적으로 명시되지 않은 내용은 일반적인 지식이나 추론을 이용해 보완하지 마세요."
+        self.assertEqual(gated["agents"], raw["agents"])
+        self.assertEqual(gated["stages"][0], raw["stages"][0])
+        self.assertEqual(gated["stages"][1], raw["stages"][1])
+        self.assertIn("{MULTI_STAGE_2_SUPPORTED}", gated["stages"][2]["prompt_template"])
+        self.assertIn("{MULTI_STAGE_1}", raw["stages"][2]["prompt_template"])
+        self.assertEqual(raw["stages"][2]["input_policy"], "raw_draft_and_checker_report")
+        for config in (raw, raw_high_pressure):
+            self.assertIn(constraint, config["stages"][1]["prompt_template"])
+            self.assertIn(constraint, config["stages"][2]["prompt_template"])
+
     def test_rate_limit_retry_delay_uses_provider_hint(self):
         self.assertEqual(retry_delay_seconds("Please try again in 977ms.", 0), 1.0)
         self.assertEqual(retry_delay_seconds("Try again in 2.5s.", 0), 2.5)
@@ -78,6 +93,31 @@ class MultiRunnerTests(unittest.TestCase):
             self.assertEqual(record["question_condition"], "HIGH_PRESSURE_INDUCTION")
             self.assertEqual(record["source_question_id"], "A001_Q001")
             self.assertEqual(record["stage_role"], "article_grounded_checker")
+            self.assertTrue((run_dir / "blind_review_packets.csv").exists())
+            self.assertTrue((run_dir / "blind_key.coordinator_only.csv").exists())
+            self.assertTrue((run_dir / "blind_labels.template.csv").exists())
+
+    def test_raw_passthrough_pipeline_records_its_input_policy(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "config").mkdir()
+            (root / "data").mkdir()
+            (root / "results").mkdir()
+            (root / "data" / "manifest.jsonl").write_text(
+                json.dumps({"article_id": "A001", "dataset_path": "data/pack.json"}) + "\n",
+                encoding="utf-8",
+            )
+            (root / "data" / "pack.json").write_text(
+                json.dumps({"article_id": "A001", "source_type": "news_article", "article_text": "기사 원문", "questions": [{"question_id": "Q001", "type": "FACT", "target_error": "none", "question": "질문"}]}),
+                encoding="utf-8",
+            )
+            config = json.loads((ROOT / "config" / "halo_multi_same_model_raw.example.json").read_text(encoding="utf-8"))
+            config["dataset_manifest_path"] = "data/manifest.jsonl"
+            (root / "config" / "raw.json").write_text(json.dumps(config, ensure_ascii=False), encoding="utf-8")
+            run_dir = run_batch(root / "config" / "raw.json", root / "results", "raw", dry_run=True)
+            records = [json.loads(line) for line in (run_dir / "responses.jsonl").read_text(encoding="utf-8").splitlines()]
+            m3 = next(record for record in records if record["stage"] == "MULTI_STAGE_3")
+            self.assertEqual(m3["m3_input_policy"], "raw_draft_and_checker_report")
 
 
 if __name__ == "__main__":
