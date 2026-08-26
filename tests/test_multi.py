@@ -121,7 +121,43 @@ class MultiRunnerTests(unittest.TestCase):
             m3 = next(record for record in records if record["stage"] == "MULTI_STAGE_3")
             self.assertEqual(m3["m3_input_policy"], "raw_draft_and_checker_report")
 
+    def test_v2_conditions_fix_grounding_contract_and_record_factor_metadata(self):
+        names = [
+            "halo_v2_single_raw.calibration.json",
+            "halo_v2_single_gated.calibration.json",
+            "halo_v2_multi_raw.calibration.json",
+            "halo_v2_multi_gated.calibration.json",
+        ]
+        configs = [json.loads((ROOT / "config" / name).read_text(encoding="utf-8")) for name in names]
+        contracts = {config["prompt_variables"]["GROUNDING_CONTRACT"] for config in configs}
+        self.assertEqual(len(contracts), 1)
+        for config in configs:
+            self.assertEqual(config["analysis_scope"], "calibration_only_do_not_pool_with_primary")
+            for stage in config["stages"]:
+                self.assertIn("{GROUNDING_CONTRACT}", stage["prompt_template"])
+        self.assertEqual({config["topology"] for config in configs}, {"self_refinement", "role_separated"})
+        self.assertEqual({config["information_flow"] for config in configs}, {"raw_draft_and_checker_report", "checker_supported_only"})
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "config").mkdir()
+            (root / "data").mkdir()
+            (root / "results").mkdir()
+            config = json.loads((ROOT / "config" / names[0]).read_text(encoding="utf-8"))
+            config["dataset_manifest_path"] = "data/manifest.jsonl"
+            (root / "data" / "manifest.jsonl").write_text(json.dumps({"article_id": "A001", "dataset_path": "data/pack.json"}) + "\n", encoding="utf-8")
+            (root / "data" / "pack.json").write_text(json.dumps({"article_id": "A001", "source_type": "news_article", "article_text": "기사", "questions": [{"question_id": "V2_A001_01", "type": "SUPPORTED_SYNTHESIS", "condition": "SUPPORTED_SYNTHESIS", "target_error": "none", "question": "질문"}]}), encoding="utf-8")
+            config_path = root / "config" / "v2.json"
+            config_path.write_text(json.dumps(config, ensure_ascii=False), encoding="utf-8")
+            run_dir = run_batch(config_path, root / "results", "v2", dry_run=True)
+            manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+            records = [json.loads(line) for line in (run_dir / "responses.jsonl").read_text(encoding="utf-8").splitlines()]
+            self.assertEqual(manifest["protocol"]["condition_id"], "single_raw")
+            self.assertEqual(manifest["protocol"]["analysis_scope"], "calibration_only_do_not_pool_with_primary")
+            self.assertEqual(records[-1]["topology"], "self_refinement")
+            self.assertEqual(records[-1]["information_flow"], "raw_draft_and_checker_report")
+            self.assertTrue(records[-1]["common_grounding_contract_sha256"])
+
 
 if __name__ == "__main__":
     unittest.main()
-

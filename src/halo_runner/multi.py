@@ -111,6 +111,9 @@ def project_path(config_path: Path, raw: str) -> Path:
 
 def run_batch(config_path: Path, output_root: Path, run_id: str, dry_run: bool) -> Path:
     config = read_json(config_path)
+    prompt_variables = config.get("prompt_variables", {})
+    if not isinstance(prompt_variables, dict) or not all(isinstance(key, str) and isinstance(value, str) for key, value in prompt_variables.items()):
+        raise ValueError("prompt_variables must be a string-to-string object")
     packs = read_jsonl(project_path(config_path, config["dataset_manifest_path"]))
     max_articles = int(config.get("max_articles", 0))
     max_questions = int(config.get("max_questions_per_article", 0))
@@ -143,7 +146,16 @@ def run_batch(config_path: Path, output_root: Path, run_id: str, dry_run: bool) 
     else:
         work_items = work_items[question_offset:]
 
-    write_json(run_dir / "manifest.json", {"run_id": run_id, "created_at": utc_now(), "dry_run": dry_run, "dataset_manifest_path": config["dataset_manifest_path"], "max_articles": max_articles, "max_questions_per_article": max_questions, "question_offset": question_offset, "max_total_questions": max_total_questions, "selected_question_count": len(work_items), "agents": config["agents"]})
+    protocol = {
+        "experiment_name": config.get("experiment_name"),
+        "condition_id": config.get("condition_id"),
+        "protocol_version": config.get("protocol_version"),
+        "analysis_scope": config.get("analysis_scope", "primary"),
+        "topology": config.get("topology"),
+        "information_flow": config.get("information_flow"),
+        "common_grounding_contract_sha256": sha256_text(prompt_variables.get("GROUNDING_CONTRACT", "")),
+    }
+    write_json(run_dir / "manifest.json", {"run_id": run_id, "created_at": utc_now(), "dry_run": dry_run, "dataset_manifest_path": config["dataset_manifest_path"], "max_articles": max_articles, "max_questions_per_article": max_questions, "question_offset": question_offset, "max_total_questions": max_total_questions, "selected_question_count": len(work_items), "agents": config["agents"], "protocol": protocol})
     records: list[dict[str, Any]] = []
     shared_clients: dict[str, ProviderClient] = {}
     clients: dict[str, ProviderClient] = {}
@@ -152,7 +164,7 @@ def run_batch(config_path: Path, output_root: Path, run_id: str, dry_run: bool) 
         clients[agent_id] = shared_clients.setdefault(client_key, ProviderClient(agent))
     for pack, article, question in work_items:
         for repetition in range(1, config["repetitions"] + 1):
-            context = {"ARTICLE": article, "QUESTION": question["question"]}
+            context = {"ARTICLE": article, "QUESTION": question["question"], **prompt_variables}
             for stage in config["stages"]:
                 agent = config["agents"][stage["agent"]]
                 prompt = render_prompt(stage["prompt_template"], context, stage["id"])
@@ -163,7 +175,7 @@ def run_batch(config_path: Path, output_root: Path, run_id: str, dry_run: bool) 
                     context[f"{stage['id']}_SUPPORTED"] = supported_context
                 else:
                     supported_item_count = 0
-                records.append({"run_id": run_id, "generated_at": utc_now(), "article_id": pack["article_id"], "source_type": pack["source_type"], "repetition": repetition, "question_id": question["question_id"], "question_type": question["type"], "question_condition": question.get("condition", "BASELINE"), "induction_strategy": question.get("induction_strategy"), "source_question_id": question.get("source_question_id"), "target_error": question["target_error"], "question": question["question"], "stage": stage["id"], "stage_role": stage.get("role", "answer_generation"), "agent": stage["agent"], "provider": agent["provider"], "model": agent["model"], "response": answer, "prompt_sha256": sha256_text(prompt), "response_sha256": sha256_text(answer), "article_sha256": sha256_text(article), "checker_supported_item_count": supported_item_count, "m3_input_policy": stage.get("input_policy", "checker_supported_only") if stage.get("role") == "grounded_final_editor" else None, "status": "PENDING_MANUAL_LABEL"})
+                records.append({"run_id": run_id, "generated_at": utc_now(), "article_id": pack["article_id"], "source_type": pack["source_type"], "repetition": repetition, "question_id": question["question_id"], "question_type": question["type"], "question_condition": question.get("condition", "BASELINE"), "induction_strategy": question.get("induction_strategy"), "source_question_id": question.get("source_question_id"), "target_error": question["target_error"], "question": question["question"], "stage": stage["id"], "stage_role": stage.get("role", "answer_generation"), "agent": stage["agent"], "provider": agent["provider"], "model": agent["model"], "response": answer, "prompt_sha256": sha256_text(prompt), "response_sha256": sha256_text(answer), "article_sha256": sha256_text(article), "checker_supported_item_count": supported_item_count, "m3_input_policy": stage.get("input_policy", "checker_supported_only") if stage.get("role") == "grounded_final_editor" else None, "condition_id": config.get("condition_id"), "protocol_version": config.get("protocol_version"), "analysis_scope": config.get("analysis_scope", "primary"), "topology": config.get("topology"), "information_flow": config.get("information_flow"), "common_grounding_contract_sha256": protocol["common_grounding_contract_sha256"], "status": "PENDING_MANUAL_LABEL"})
                 write_jsonl(run_dir / "responses.jsonl", records)
                 write_label_template(run_dir / "labels.template.csv", records)
                 write_blind_review_files(run_dir, records, articles_by_id)
@@ -171,4 +183,3 @@ def run_batch(config_path: Path, output_root: Path, run_id: str, dry_run: bool) 
     write_label_template(run_dir / "labels.template.csv", records)
     write_blind_review_files(run_dir, records, articles_by_id)
     return run_dir
-
