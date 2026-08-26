@@ -77,7 +77,7 @@ def write_blind_review_files(run_dir: Path, records: list[dict[str, Any]], artic
         "blind_id", "run_id", "article_id", "question_id", "repetition", "stage",
         "question_condition", "agent", "provider", "model",
     ]
-    label_fields = ["blind_id", "hallucination", "severity", "propagation", "reviewer", "notes"]
+    label_fields = ["blind_id", "hallucination", "severity", "reviewer", "notes"]
     with (run_dir / "blind_review_packets.csv").open("w", encoding="utf-8", newline="") as packet_handle, \
          (run_dir / "blind_key.coordinator_only.csv").open("w", encoding="utf-8", newline="") as key_handle, \
          (run_dir / "blind_labels.template.csv").open("w", encoding="utf-8", newline="") as label_handle:
