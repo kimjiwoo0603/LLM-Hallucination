@@ -21,6 +21,10 @@ def retry_delay_seconds(detail: str, attempt: int) -> float:
     return min(60.0, 2.0**attempt)
 
 
+def is_daily_quota_exhausted(detail: str) -> bool:
+    return bool(re.search(r"(?:RequestsPerDay|PerDay|daily\s+quota|per\s+day)", detail, flags=re.IGNORECASE))
+
+
 def checker_supported_context(checker_response: str) -> tuple[str, int]:
     """Return only article-supported checker items for the final editor.
 
@@ -87,6 +91,10 @@ class ProviderClient:
                 break
             except urllib.error.HTTPError as error:
                 detail = error.read().decode("utf-8", errors="replace")
+                if error.code == 429 and is_daily_quota_exhausted(detail):
+                    raise RuntimeError(
+                        f"{provider} daily quota is exhausted; save the uploaded partial artifact and resume in the next quota window"
+                    ) from error
                 if error.code == 429 and attempt < max_rate_limit_retries:
                     time.sleep(retry_delay_seconds(detail, attempt))
                     continue
