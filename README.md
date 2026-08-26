@@ -158,6 +158,8 @@ Gemini 무료 사용량은 일일 호출 한도가 있으므로, 전체 33개 �
 
 두 배치 모두 `Maximum number of articles=0`, `Maximum questions per article=0`, `Repetitions=1`로 설정합니다. Batch 2는 다음 Gemini 일일 사용량 창에서 실행하는 것을 권장합니다.
 
+Gemini 테스트를 같은 날 먼저 1문항 실행했다면 그 호출도 일일 20회에 포함됩니다. 이때 Batch 1은 `Maximum total questions=19`로 실행하고, 다음 날 Batch 2는 `Skip=19`, `Maximum total questions=20`으로 실행합니다. 일일 한도로 중단된 실행의 아티팩트에는 완료된 질문만 사용합니다.
+
 ### 4. Same Model 통제 조건 실행
 
 `Run HALO multi-agent same-model control`을 선택합니다. 입력값과 `Question condition` 선택 방식은 멀티 에이전트 조건과 같습니다. Gemini API 키나 Gemini 사용량은 필요하지 않으며 `OPENAI_API_KEY`만 사용합니다.
