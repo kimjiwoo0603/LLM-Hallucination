@@ -221,6 +221,12 @@ results/<run-id>/
 3. 두 검토자의 불일치를 해결하고 라벨을 잠근 뒤에만 책임자가 `blind_key.coordinator_only.csv`를 사용합니다.
 4. 키 파일은 검토자에게 공유하지 않습니다.
 
+이미 끝난 실행에 블라인드 파일이 없다면, 결과 ZIP을 푼 뒤 아래 명령으로 생성합니다.
+
+```powershell
+python prepare_blind_review.py --run-dir results/<기존-run-id>
+```
+
 | 항목 | 값 | 의미 |
 | --- | --- | --- |
 | Hallucination | `0` / `1` | 기사 근거가 없는 사실을 생성했는지 |
