@@ -1,5 +1,6 @@
 import csv
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -13,6 +14,30 @@ from prepare_blind_review import load_articles
 
 
 class AggregateTests(unittest.TestCase):
+    def test_prepare_blind_review_mixes_multiple_runs(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            pack_path = root / "pack.json"
+            manifest_path = root / "manifest.jsonl"
+            pack_path.write_text(json.dumps({"article_id": "A001", "article_text": "기사 원문"}), encoding="utf-8")
+            manifest_path.write_text(json.dumps({"article_id": "A001", "dataset_path": str(pack_path)}) + "\n", encoding="utf-8")
+            run_dirs = []
+            for index in (1, 2):
+                run_dir = root / f"run-{index}"
+                run_dir.mkdir()
+                record = {"run_id": f"run-{index}", "article_id": "A001", "question_id": "Q001", "repetition": 1, "stage": "S3", "response_sha256": str(index), "question": "질문", "response": f"답변 {index}"}
+                (run_dir / "responses.jsonl").write_text(json.dumps(record, ensure_ascii=False) + "\n", encoding="utf-8")
+                run_dirs.append(run_dir)
+            output_dir = root / "combined"
+            subprocess.run(
+                [sys.executable, str(ROOT / "prepare_blind_review.py"), "--run-dir", str(run_dirs[0]), "--run-dir", str(run_dirs[1]), "--output-dir", str(output_dir), "--dataset-manifest", str(manifest_path)],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            with (output_dir / "blind_review_packets.csv").open(encoding="utf-8") as handle:
+                self.assertEqual(len(list(csv.DictReader(handle))), 2)
+
     def test_existing_run_article_loader_uses_pack_manifest(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
