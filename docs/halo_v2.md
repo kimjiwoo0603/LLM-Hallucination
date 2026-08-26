@@ -23,3 +23,14 @@ For one complete observation per question across conditions, use Cochran’s Q f
 ## What this automation does not do
 
 It does not bypass robots.txt or source terms, fabricate articles/questions, approve candidates, make human labels, resolve disagreements, or claim results from an unexecuted experiment.
+
+## Execution after the freeze
+
+After human review, run `select` to create an immutable benchmark directory. Then run `build_v2_primary_configs.py` once. It creates four GPT-4.1, temperature-0 execution configurations:
+
+- `single_raw`: one model performs its own draft, check, and raw-context revision.
+- `single_gated`: one model performs its own draft/check, but its final revision receives only checker-supported content.
+- `multi_raw`: three separately scoped calls to the same GPT-4.1 model, with raw draft/check context passed to the final editor.
+- `multi_gated`: three separately scoped GPT-4.1 calls, with only checker-supported content passed to the final editor.
+
+This is a fixed 2×2 design: **topology** (self-refinement vs role-separated) × **information flow** (raw vs supported-only). The builder stores the configuration hashes in `primary_execution_freeze.json`. It makes no API calls.

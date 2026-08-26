@@ -106,7 +106,35 @@ class ProviderClient:
 
 def project_path(config_path: Path, raw: str) -> Path:
     candidate = Path(raw)
-    return candidate if candidate.is_absolute() else (config_path.parent.parent / candidate).resolve()
+    if candidate.is_absolute():
+        return candidate
+    # Configs may be stored directly in config/ or in a frozen subdirectory.
+    # Locate the repository rather than assuming a fixed two-level layout.
+    for parent in (config_path.parent, *config_path.parents):
+        if (parent / "src" / "halo_runner").is_dir() and (parent / "datasets").is_dir():
+            return (parent / candidate).resolve()
+    return (config_path.parent.parent / candidate).resolve()
+
+
+def _load_v2_benchmark_work_items(config_path: Path, config: dict[str, Any]) -> tuple[list[tuple[dict[str, Any], str, dict[str, Any]]], dict[str, str]]:
+    """Load only the frozen, approved HALO 2.0 benchmark representation."""
+    article_path = project_path(config_path, config["articles_path"])
+    question_path = project_path(config_path, config["questions_path"])
+    articles = read_jsonl(article_path)
+    questions = read_jsonl(question_path)
+    articles_by_id = {str(row["article_id"]): str(row["article_text"]) for row in articles}
+    packs = {str(row["article_id"]): row for row in articles}
+    work_items: list[tuple[dict[str, Any], str, dict[str, Any]]] = []
+    for question in questions:
+        article_id = str(question["article_id"])
+        if article_id not in articles_by_id:
+            raise ValueError(f"HALO 2.0 question refers to missing article: {article_id}")
+        if question.get("annotation_status") != "approved":
+            continue
+        if packs[article_id].get("review_status") != "approved":
+            continue
+        work_items.append((packs[article_id], articles_by_id[article_id], question))
+    return work_items, articles_by_id
 
 
 def run_batch(config_path: Path, output_root: Path, run_id: str, dry_run: bool) -> Path:
@@ -114,33 +142,48 @@ def run_batch(config_path: Path, output_root: Path, run_id: str, dry_run: bool) 
     prompt_variables = config.get("prompt_variables", {})
     if not isinstance(prompt_variables, dict) or not all(isinstance(key, str) and isinstance(value, str) for key, value in prompt_variables.items()):
         raise ValueError("prompt_variables must be a string-to-string object")
-    packs = read_jsonl(project_path(config_path, config["dataset_manifest_path"]))
+    is_v2_benchmark = config.get("dataset_format") == "halo_v2_benchmark"
+    packs = [] if is_v2_benchmark else read_jsonl(project_path(config_path, config["dataset_manifest_path"]))
     max_articles = int(config.get("max_articles", 0))
     max_questions = int(config.get("max_questions_per_article", 0))
     question_offset = int(config.get("question_offset", 0))
     max_total_questions = int(config.get("max_total_questions", 0))
     if min(max_articles, max_questions, question_offset, max_total_questions) < 0:
         raise ValueError("run limits and question_offset must be zero or greater")
-    if max_articles:
+    if max_articles and not is_v2_benchmark:
         packs = packs[:max_articles]
     run_dir = output_root / run_id
     run_dir.mkdir(parents=True, exist_ok=False)
-    work_items: list[tuple[dict[str, Any], str, dict[str, Any]]] = []
-    articles_by_id: dict[str, str] = {}
-    for pack_ref in packs:
-        pack = read_json(project_path(config_path, pack_ref["dataset_path"]))
-        article = pack.get("article_text")
-        if article is None:
-            article = project_path(config_path, pack["article_path"]).read_text(encoding="utf-8")
-        articles_by_id[pack["article_id"]] = article
-        questions = (
-            read_jsonl(project_path(config_path, pack_ref["questions_path"]))
-            if "questions_path" in pack_ref
-            else pack["questions"]
-        )
+    if is_v2_benchmark:
+        work_items, articles_by_id = _load_v2_benchmark_work_items(config_path, config)
+        if max_articles:
+            allowed_articles = sorted({pack["article_id"] for pack, _, _ in work_items})[:max_articles]
+            work_items = [item for item in work_items if item[0]["article_id"] in allowed_articles]
         if max_questions:
-            questions = questions[:max_questions]
-        work_items.extend((pack, article, question) for question in questions)
+            trimmed: list[tuple[dict[str, Any], str, dict[str, Any]]] = []
+            counts: dict[str, int] = {}
+            for item in work_items:
+                article_id = str(item[0]["article_id"])
+                if counts.get(article_id, 0) < max_questions:
+                    trimmed.append(item); counts[article_id] = counts.get(article_id, 0) + 1
+            work_items = trimmed
+    else:
+        work_items = []
+        articles_by_id = {}
+        for pack_ref in packs:
+            pack = read_json(project_path(config_path, pack_ref["dataset_path"]))
+            article = pack.get("article_text")
+            if article is None:
+                article = project_path(config_path, pack["article_path"]).read_text(encoding="utf-8")
+            articles_by_id[pack["article_id"]] = article
+            questions = (
+                read_jsonl(project_path(config_path, pack_ref["questions_path"]))
+                if "questions_path" in pack_ref
+                else pack["questions"]
+            )
+            if max_questions:
+                questions = questions[:max_questions]
+            work_items.extend((pack, article, question) for question in questions)
     if max_total_questions:
         work_items = work_items[question_offset : question_offset + max_total_questions]
     else:
@@ -155,7 +198,7 @@ def run_batch(config_path: Path, output_root: Path, run_id: str, dry_run: bool) 
         "information_flow": config.get("information_flow"),
         "common_grounding_contract_sha256": sha256_text(prompt_variables.get("GROUNDING_CONTRACT", "")),
     }
-    write_json(run_dir / "manifest.json", {"run_id": run_id, "created_at": utc_now(), "dry_run": dry_run, "dataset_manifest_path": config["dataset_manifest_path"], "max_articles": max_articles, "max_questions_per_article": max_questions, "question_offset": question_offset, "max_total_questions": max_total_questions, "selected_question_count": len(work_items), "agents": config["agents"], "protocol": protocol})
+    write_json(run_dir / "manifest.json", {"run_id": run_id, "created_at": utc_now(), "dry_run": dry_run, "dataset_format": config.get("dataset_format", "legacy_article_packs"), "dataset_manifest_path": config.get("dataset_manifest_path"), "articles_path": config.get("articles_path"), "questions_path": config.get("questions_path"), "max_articles": max_articles, "max_questions_per_article": max_questions, "question_offset": question_offset, "max_total_questions": max_total_questions, "selected_question_count": len(work_items), "agents": config["agents"], "protocol": protocol})
     records: list[dict[str, Any]] = []
     shared_clients: dict[str, ProviderClient] = {}
     clients: dict[str, ProviderClient] = {}
@@ -175,7 +218,7 @@ def run_batch(config_path: Path, output_root: Path, run_id: str, dry_run: bool) 
                     context[f"{stage['id']}_SUPPORTED"] = supported_context
                 else:
                     supported_item_count = 0
-                records.append({"run_id": run_id, "generated_at": utc_now(), "article_id": pack["article_id"], "source_type": pack["source_type"], "repetition": repetition, "question_id": question["question_id"], "question_type": question["type"], "question_condition": question.get("condition", "BASELINE"), "induction_strategy": question.get("induction_strategy"), "source_question_id": question.get("source_question_id"), "target_error": question["target_error"], "question": question["question"], "stage": stage["id"], "stage_role": stage.get("role", "answer_generation"), "agent": stage["agent"], "provider": agent["provider"], "model": agent["model"], "response": answer, "prompt_sha256": sha256_text(prompt), "response_sha256": sha256_text(answer), "article_sha256": sha256_text(article), "checker_supported_item_count": supported_item_count, "m3_input_policy": stage.get("input_policy", "checker_supported_only") if stage.get("role") == "grounded_final_editor" else None, "condition_id": config.get("condition_id"), "protocol_version": config.get("protocol_version"), "analysis_scope": config.get("analysis_scope", "primary"), "topology": config.get("topology"), "information_flow": config.get("information_flow"), "common_grounding_contract_sha256": protocol["common_grounding_contract_sha256"], "status": "PENDING_MANUAL_LABEL"})
+                records.append({"run_id": run_id, "generated_at": utc_now(), "article_id": pack["article_id"], "source_type": pack.get("source_type", "news_article"), "repetition": repetition, "question_id": question["question_id"], "question_type": question.get("type", question.get("question_type")), "question_condition": question.get("condition", question.get("question_condition", "BASELINE")), "induction_strategy": question.get("induction_strategy"), "source_question_id": question.get("source_question_id"), "target_error": question.get("target_error", question.get("target_claim", "")), "question": question["question"], "stage": stage["id"], "stage_role": stage.get("role", "answer_generation"), "agent": stage["agent"], "provider": agent["provider"], "model": agent["model"], "response": answer, "prompt_sha256": sha256_text(prompt), "response_sha256": sha256_text(answer), "article_sha256": sha256_text(article), "checker_supported_item_count": supported_item_count, "m3_input_policy": stage.get("input_policy", "checker_supported_only") if stage.get("role") == "grounded_final_editor" else None, "condition_id": config.get("condition_id"), "protocol_version": config.get("protocol_version"), "analysis_scope": config.get("analysis_scope", "primary"), "topology": config.get("topology"), "information_flow": config.get("information_flow"), "common_grounding_contract_sha256": protocol["common_grounding_contract_sha256"], "status": "PENDING_MANUAL_LABEL"})
                 write_jsonl(run_dir / "responses.jsonl", records)
                 write_label_template(run_dir / "labels.template.csv", records)
                 write_blind_review_files(run_dir, records, articles_by_id)

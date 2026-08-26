@@ -13,6 +13,8 @@ from halo_runner.v2 import (approved_benchmark, exact_mcnemar_pvalue, normalize_
                             validate_articles, validate_questions, wilson_interval, write_adjudication)
 from halo_runner.v2_candidates import build_candidates
 from halo_runner.v2_candidates import apply_review_templates
+from halo_runner.v2_execution import build_primary_execution_configs
+from halo_runner.multi import run_batch
 
 
 def article(article_id="A001", status="approved"):
@@ -95,6 +97,29 @@ class HaloV2Tests(unittest.TestCase):
             self.assertEqual(report["articles"]["approved"], 1)
             self.assertEqual(report["questions"]["approved"], 1)
             self.assertTrue((root / "out" / "articles.reviewed.jsonl").exists())
+
+    def test_primary_config_builder_freezes_the_same_model_2x2_design(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            freeze = build_primary_execution_configs(root / "benchmark", root / "configs", "halo-v2-test", repetitions=2)
+            self.assertEqual([row["condition_id"] for row in freeze["conditions"]], ["single_raw", "single_gated", "multi_raw", "multi_gated"])
+            config = json.loads((root / "configs" / "halo_v2_primary.multi_gated.json").read_text(encoding="utf-8"))
+            self.assertEqual(config["dataset_format"], "halo_v2_benchmark")
+            self.assertEqual(config["stages"][-1]["input_policy"], "checker_supported_only")
+
+    def test_v2_benchmark_runs_in_dry_mode_after_freeze(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            benchmark = root / "benchmark"; benchmark.mkdir()
+            from halo_runner.core import read_jsonl, write_jsonl
+            write_jsonl(benchmark / "articles.jsonl", [article()])
+            write_jsonl(benchmark / "questions.jsonl", [question()])
+            build_primary_execution_configs(benchmark, root / "configs" / "frozen", "halo-v2-test", repetitions=1)
+            run_dir = run_batch(root / "configs" / "frozen" / "halo_v2_primary.multi_gated.json", root / "results", "dry", dry_run=True)
+            records = read_jsonl(run_dir / "responses.jsonl")
+            self.assertEqual(len(records), 3)
+            self.assertEqual(records[-1]["m3_input_policy"], "checker_supported_only")
+            self.assertEqual(records[-1]["question_type"], "false_number")
 
 
 if __name__ == "__main__":
