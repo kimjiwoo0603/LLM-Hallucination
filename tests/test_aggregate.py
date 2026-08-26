@@ -1,4 +1,5 @@
 import csv
+import json
 import sys
 import tempfile
 import unittest
@@ -8,9 +9,19 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from aggregate_results import read_blind_key, read_labels
+from prepare_blind_review import load_articles
 
 
 class AggregateTests(unittest.TestCase):
+    def test_existing_run_article_loader_uses_pack_manifest(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            pack_path = root / "pack.json"
+            manifest_path = root / "manifest.jsonl"
+            pack_path.write_text(json.dumps({"article_id": "A001", "article_text": "기사 원문"}), encoding="utf-8")
+            manifest_path.write_text(json.dumps({"article_id": "A001", "dataset_path": str(pack_path)}) + "\n", encoding="utf-8")
+            self.assertEqual(load_articles(manifest_path), {"A001": "기사 원문"})
+
     def test_blind_labels_require_and_use_separate_key(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
