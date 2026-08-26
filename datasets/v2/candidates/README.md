@@ -23,6 +23,12 @@
 
 검토표를 완료한 뒤, 확인된 값만 `articles.candidates.jsonl`과 `questions.candidates.jsonl`에 반영한다. 그 다음에야 `run_halo_v2.py validate`와 고정 시드 선택 단계를 실행한다.
 
+직접 JSON을 수정할 필요는 없다. 검토표를 작성한 뒤 아래처럼 실행하면, 검토자의 입력만 별도 `reviewed/` 폴더에 반영한다. 승인 행에 공개 URL·발행일·범주·근거가 빠져 있으면 실행은 중단되고 결과 파일은 만들어지지 않는다.
+
+```powershell
+python run_halo_v2.py apply-reviews --articles datasets/v2/candidates/articles.candidates.jsonl --questions datasets/v2/candidates/questions.candidates.jsonl --article-reviews datasets/v2/candidates/review_templates/article_review.template.csv --question-reviews datasets/v2/candidates/review_templates/question_review.template.csv --output-dir datasets/v2/reviewed
+```
+
 ## 재현성
 
 `conversion_manifest.json`은 변환에 사용된 각 원본 파일의 SHA-256 해시를 기록한다. 원본 기사나 질문이 바뀌면 이 후보군을 다시 생성하고 새 해시를 남긴다.

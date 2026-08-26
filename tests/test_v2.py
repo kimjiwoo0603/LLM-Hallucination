@@ -12,6 +12,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from halo_runner.v2 import (approved_benchmark, exact_mcnemar_pvalue, normalize_url, read_v2_labels,
                             validate_articles, validate_questions, wilson_interval, write_adjudication)
 from halo_runner.v2_candidates import build_candidates
+from halo_runner.v2_candidates import apply_review_templates
 
 
 def article(article_id="A001", status="approved"):
@@ -76,6 +77,24 @@ class HaloV2Tests(unittest.TestCase):
         self.assertTrue(all(row["review_status"] == "pending" for row in articles))
         self.assertTrue(all(row["annotation_status"] == "pending" for row in questions))
         self.assertEqual(manifest["all_article_review_status"], "pending")
+
+    def test_review_import_requires_complete_approval_and_writes_reviewed_copy(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            articles, questions = [article()], [question()]
+            from halo_runner.core import write_jsonl
+            write_jsonl(root / "articles.jsonl", articles); write_jsonl(root / "questions.jsonl", questions)
+            article_fields = ["article_id", "review_status", "source_name", "original_url", "published_at", "category", "reviewer", "notes"]
+            question_fields = ["question_id", "annotation_status", "question_type", "difficulty", "false_premise", "target_claim", "evidence_basis", "reviewer", "notes"]
+            article_review = {"article_id": "A001", "review_status": "approved", "source_name": "공식", "original_url": "https://example.test/A001", "published_at": "2026-08-27", "category": "society", "reviewer": "R1", "notes": ""}
+            question_review = {"question_id": "Q001", "annotation_status": "approved", "question_type": "false_number", "difficulty": "HARD", "false_premise": "허위 수치", "target_claim": "기사 밖 주장", "evidence_basis": "본문", "reviewer": "R1", "notes": ""}
+            for filename, fields, row in (("article.csv", article_fields, article_review), ("question.csv", question_fields, question_review)):
+                with (root / filename).open("w", encoding="utf-8-sig", newline="") as handle:
+                    writer = csv.DictWriter(handle, fieldnames=fields); writer.writeheader(); writer.writerow(row)
+            report = apply_review_templates(root / "articles.jsonl", root / "questions.jsonl", root / "article.csv", root / "question.csv", root / "out")
+            self.assertEqual(report["articles"]["approved"], 1)
+            self.assertEqual(report["questions"]["approved"], 1)
+            self.assertTrue((root / "out" / "articles.reviewed.jsonl").exists())
 
 
 if __name__ == "__main__":
