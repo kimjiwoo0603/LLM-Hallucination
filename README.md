@@ -40,7 +40,28 @@ Gemini checker는 단순히 답변을 다시 쓰지 않습니다. 기사만 사�
 - `MIXED`: 기사 근거와 기사 밖 내용이 섞인 답변
 - `UNSUPPORTED`: 기사 근거가 없는 답변
 
-Gemini는 기사 밖 수치·인물·날짜·원인·예측을 제거 대상으로 표시합니다. M3는 Gemini가 지적한 내용을 반복하지 않고, 기사로 확인되는 사실만 최종 답변에 사용하도록 설정되어 있습니다.
+Gemini는 기사 밖 수치·인물·날짜·원인·예측을 제거 대상으로 표시합니다. M3에는 **M1 초안 원문이나 checker의 전체 보고서가 전달되지 않습니다.** checker가 JSON으로 반환한 `supported_items` 가운데 기사로 뒷받침된 항목만 전달되며, JSON 형식이 깨진 경우에는 아무 항목도 전달하지 않습니다. 따라서 제거 대상 정보가 M3로 우회 전달되지 않습니다.
+
+### Same Model 통제 조건
+
+모델 자체의 차이와 멀티 에이전트 구조의 차이를 구분하기 위해, 아래 조건도 별도로 실행할 수 있습니다.
+
+```text
+M1: GPT-4.1 초안
+        ↓
+M2: GPT-4.1 기사 근거 checker
+        ↓
+M3: GPT-4.1 최종 편집
+```
+
+역할, 기사·질문 입력, checker의 JSON 형식, M3 전달 방식은 Gemini checker 조건과 같습니다. 따라서 두 멀티 조건의 차이는 **M2 checker 모델만 Gemini 3.6 Flash인지 GPT-4.1인지**입니다.
+
+### 기사 밖 내용 제거 제약
+
+완료된 단일 에이전트 결과와 그 설정 파일은 변경하지 않습니다. 이후 비교를 위해 멀티 M2와 M3에는 단일 S2와 완전히 같은 아래 제약 문구를 적용합니다.
+
+> 기사에서 확인할 수 없는 정보는 임의로 추가하지 마세요.  
+> 기사에 구체적으로 명시되지 않은 내용은 일반적인 지식이나 추론을 이용해 보완하지 마세요.
 
 ## 질문 조건
 
@@ -81,6 +102,7 @@ datasets/article_packs/manifest.jsonl
 | `Run HALO single-agent ChatGPT experiment` | 기본 질문으로 단일 에이전트 실험 |
 | `Run HALO single-agent ChatGPT high-pressure experiment` | 고강도 질문으로 단일 에이전트 실험 |
 | `Run HALO multi-provider experiment` | GPT 초안 → Gemini checker → GPT 최종 편집 비교 실험 |
+| `Run HALO multi-agent same-model control` | GPT 초안 → GPT-4.1 checker → GPT 최종 편집 통제 실험 |
 
 ### 1. 빠른 테스트: 기사 1개·질문 1개
 
@@ -123,6 +145,10 @@ Gemini 무료 사용량은 일일 호출 한도가 있으므로, 전체 33개 �
 | Batch 2 | `20` | `20` |
 
 두 배치 모두 `Maximum number of articles=0`, `Maximum questions per article=0`, `Repetitions=1`로 설정합니다. Batch 2는 다음 Gemini 일일 사용량 창에서 실행하는 것을 권장합니다.
+
+### 4. Same Model 통제 조건 실행
+
+`Run HALO multi-agent same-model control`을 선택합니다. 입력값과 `Question condition` 선택 방식은 멀티 에이전트 조건과 같습니다. Gemini API 키나 Gemini 사용량은 필요하지 않으며 `OPENAI_API_KEY`만 사용합니다.
 
 ## API 키 설정
 
