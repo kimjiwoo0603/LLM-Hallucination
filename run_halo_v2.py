@@ -15,6 +15,7 @@ from halo_runner.core import read_jsonl, write_jsonl
 from halo_runner.v2 import (approved_benchmark, final_records, read_v2_labels, summarize_final_labels,
                             validate_articles, validate_questions, write_adjudication, write_dataset_manifest,
                             write_v2_blind_packet)
+from halo_runner.v2_candidates import apply_review_templates
 
 
 def articles_from_manifest(path: Path) -> dict[str, str]:
@@ -43,6 +44,10 @@ def main() -> int:
     adjudicate.add_argument("--rater-a", type=Path, required=True); adjudicate.add_argument("--rater-b", type=Path, required=True); adjudicate.add_argument("--output-dir", type=Path, required=True)
     summarize = sub.add_parser("summarize")
     summarize.add_argument("--labels", type=Path, required=True); summarize.add_argument("--blind-key", type=Path, required=True); summarize.add_argument("--output", type=Path, required=True)
+    apply_reviews = sub.add_parser("apply-reviews")
+    apply_reviews.add_argument("--articles", type=Path, required=True); apply_reviews.add_argument("--questions", type=Path, required=True)
+    apply_reviews.add_argument("--article-reviews", type=Path, required=True); apply_reviews.add_argument("--question-reviews", type=Path, required=True)
+    apply_reviews.add_argument("--output-dir", type=Path, required=True)
     args = parser.parse_args()
     if args.command == "validate":
         articles, questions = read_jsonl(args.articles), read_jsonl(args.questions)
@@ -52,7 +57,11 @@ def main() -> int:
         print(json.dumps({"articles": len(articles), "questions": len(questions), "status": "valid"}, ensure_ascii=False)); return 0
     if args.command == "select":
         articles, questions = read_jsonl(args.articles), read_jsonl(args.questions)
-        errors = validate_articles(articles, args.min_chars, args.max_chars) + validate_questions(questions, {row.get("article_id") for row in articles})
+        # Pending/rejected candidates may be incomplete or too short.  Only an
+        # approved record can enter the benchmark, so apply the minimum-length
+        # rule to that subset while still checking every record's basic schema.
+        approved_articles = [row for row in articles if row.get("review_status") == "approved"]
+        errors = validate_articles(articles, 1, args.max_chars) + validate_articles(approved_articles, args.min_chars, args.max_chars) + validate_questions(questions, {row.get("article_id") for row in articles})
         if errors: raise ValueError("Refusing selection: " + "; ".join(errors))
         selected_articles, selected_questions = approved_benchmark(articles, questions, args.seed, args.target_articles)
         args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -79,6 +88,9 @@ def main() -> int:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(summarize_final_labels(joined), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         print(args.output); return 0
+    if args.command == "apply-reviews":
+        report = apply_review_templates(args.articles, args.questions, args.article_reviews, args.question_reviews, args.output_dir)
+        print(json.dumps(report, ensure_ascii=False)); return 0
     return 1
 
 

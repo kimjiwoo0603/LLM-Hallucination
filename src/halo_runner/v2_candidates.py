@@ -139,3 +139,97 @@ def write_candidates(repo_root: Path, output_dir: Path) -> dict[str, Any]:
     write_json(output_dir / "conversion_manifest.json", provenance)
     write_review_templates(output_dir, articles, questions)
     return provenance
+
+
+def _read_csv_rows(path: Path, required: set[str]) -> list[dict[str, str]]:
+    with path.open(encoding="utf-8-sig", newline="") as handle:
+        reader = csv.DictReader(handle)
+        fields = set(reader.fieldnames or [])
+        missing = required.difference(fields)
+        if missing:
+            raise ValueError(f"Review file {path.name} is missing {sorted(missing)[0]}")
+        rows = list(reader)
+    seen = set()
+    for line, row in enumerate(rows, start=2):
+        row_id = row.get("article_id") or row.get("question_id")
+        if not row_id:
+            raise ValueError(f"Review file {path.name} has a blank ID at line {line}")
+        if row_id in seen:
+            raise ValueError(f"Review file {path.name} has a duplicate ID at line {line}")
+        seen.add(row_id)
+    return rows
+
+
+def _require_approved_article_values(row: dict[str, Any]) -> None:
+    required = ("source_name", "original_url", "published_at", "category", "reviewer")
+    for field in required:
+        if not str(row.get(field, "")).strip():
+            raise ValueError(f"Cannot approve {row.get('article_id')}: {field} is required")
+    if not str(row["original_url"]).startswith(("https://", "http://")):
+        raise ValueError(f"Cannot approve {row.get('article_id')}: original_url must be a public http(s) URL")
+    if str(row["published_at"]).strip().lower() == "unknown" or str(row["category"]).strip().lower() == "unassigned":
+        raise ValueError(f"Cannot approve {row.get('article_id')}: replace the pending source metadata")
+
+
+def _require_approved_question_values(row: dict[str, Any]) -> None:
+    required = ("question_type", "false_premise", "target_claim", "evidence_basis", "reviewer")
+    for field in required:
+        value = str(row.get(field, "")).strip()
+        if not value or value.upper().startswith("PENDING") or value == "pending_human_mapping":
+            raise ValueError(f"Cannot approve {row.get('question_id')}: replace pending {field}")
+
+
+def _apply_rows(records: list[dict[str, Any]], rows: list[dict[str, str]], id_field: str, status_field: str, approval_check: Any) -> list[dict[str, Any]]:
+    indexed = {str(record[id_field]): dict(record) for record in records}
+    row_index = {str(row[id_field]): row for row in rows}
+    unknown = sorted(set(row_index).difference(indexed))
+    if unknown:
+        raise ValueError(f"Review file contains unknown {id_field}: {unknown[0]}")
+    allowed = {"pending", "approved", "rejected"}
+    output = []
+    for record_id in sorted(indexed):
+        record = indexed[record_id]
+        review = row_index.get(record_id)
+        if review:
+            proposed_status = str(review.get(status_field, "")).strip() or record[status_field]
+            if proposed_status not in allowed:
+                raise ValueError(f"Invalid {status_field} for {record_id}")
+            # Copy only values that the reviewer actually supplied.  Candidate
+            # provenance remains intact and no status is inferred.
+            for key, value in review.items():
+                if key not in {id_field, status_field, "reviewer", "notes"} and value is not None and value.strip():
+                    record[key] = value.strip()
+            record[status_field] = proposed_status
+            if review.get("reviewer", "").strip():
+                record["reviewed_by"] = review["reviewer"].strip()
+            if review.get("notes", "").strip():
+                record["review_notes"] = review["notes"].strip()
+            if proposed_status == "approved":
+                approval_check({**record, "reviewer": review.get("reviewer", "")})
+        output.append(record)
+    return output
+
+
+def apply_review_templates(article_candidates: Path, question_candidates: Path, article_reviews: Path, question_reviews: Path, output_dir: Path) -> dict[str, Any]:
+    """Apply human review sheets, failing closed on incomplete approvals."""
+    articles, questions = read_jsonl(article_candidates), read_jsonl(question_candidates)
+    article_rows = _read_csv_rows(article_reviews, {"article_id", "review_status", "reviewer"})
+    question_rows = _read_csv_rows(question_reviews, {"question_id", "annotation_status", "reviewer"})
+    updated_articles = _apply_rows(articles, article_rows, "article_id", "review_status", _require_approved_article_values)
+    updated_questions = _apply_rows(questions, question_rows, "question_id", "annotation_status", _require_approved_question_values)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    write_jsonl(output_dir / "articles.reviewed.jsonl", updated_articles)
+    write_jsonl(output_dir / "questions.reviewed.jsonl", updated_questions)
+    report = {
+        "articles": {status: sum(row["review_status"] == status for row in updated_articles) for status in ("pending", "approved", "rejected")},
+        "questions": {status: sum(row["annotation_status"] == status for row in updated_questions) for status in ("pending", "approved", "rejected")},
+        "input_sha256": {
+            "article_candidates": sha256_text(article_candidates.read_text(encoding="utf-8")),
+            "question_candidates": sha256_text(question_candidates.read_text(encoding="utf-8")),
+            "article_reviews": sha256_text(article_reviews.read_text(encoding="utf-8-sig")),
+            "question_reviews": sha256_text(question_reviews.read_text(encoding="utf-8-sig")),
+        },
+        "rule": "Only values supplied by a human review sheet were copied. Incomplete approval rows stop the import without writing partial output.",
+    }
+    write_json(output_dir / "review_import_report.json", report)
+    return report
