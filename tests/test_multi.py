@@ -7,10 +7,46 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from halo_runner.multi import retry_delay_seconds, run_batch
+from halo_runner.multi import checker_supported_context, retry_delay_seconds, run_batch
 
 
 class MultiRunnerTests(unittest.TestCase):
+    def test_checker_context_contains_only_supported_items(self):
+        context, count = checker_supported_context(
+            json.dumps(
+                {
+                    "verdict": "MIXED",
+                    "supported_items": ["기사에 명시된 사실"],
+                    "unsupported_items": ["M1의 기사 밖 주장"],
+                },
+                ensure_ascii=False,
+            )
+        )
+        self.assertEqual(context, "- 기사에 명시된 사실")
+        self.assertEqual(count, 1)
+        self.assertNotIn("기사 밖", context)
+
+    def test_malformed_checker_output_does_not_pass_through(self):
+        context, count = checker_supported_context("M1 원문 전체가 여기에 있습니다")
+        self.assertEqual(context, "기사로 SUPPORTED로 확정된 항목이 없습니다.")
+        self.assertEqual(count, 0)
+
+    def test_multi_configs_share_single_s2_constraint_and_hide_m1_from_m3(self):
+        constraint = "기사에서 확인할 수 없는 정보는 임의로 추가하지 마세요.\n기사에 구체적으로 명시되지 않은 내용은 일반적인 지식이나 추론을 이용해 보완하지 마세요."
+        for name in [
+            "halo_multi.example.json",
+            "halo_multi_high_pressure.example.json",
+            "halo_multi_same_model.example.json",
+            "halo_multi_same_model_high_pressure.example.json",
+        ]:
+            config = json.loads((ROOT / "config" / name).read_text(encoding="utf-8"))
+            checker = config["stages"][1]["prompt_template"]
+            editor = config["stages"][2]["prompt_template"]
+            self.assertIn(constraint, checker)
+            self.assertIn(constraint, editor)
+            self.assertIn("{MULTI_STAGE_2_SUPPORTED}", editor)
+            self.assertNotIn("{MULTI_STAGE_1}", editor)
+
     def test_rate_limit_retry_delay_uses_provider_hint(self):
         self.assertEqual(retry_delay_seconds("Please try again in 977ms.", 0), 1.0)
         self.assertEqual(retry_delay_seconds("Try again in 2.5s.", 0), 2.5)
