@@ -11,6 +11,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from halo_runner.v2 import (approved_benchmark, exact_mcnemar_pvalue, normalize_url, read_v2_labels,
                             validate_articles, validate_questions, wilson_interval, write_adjudication)
+from halo_runner.v2_candidates import build_candidates
 
 
 def article(article_id="A001", status="approved"):
@@ -66,6 +67,15 @@ class HaloV2Tests(unittest.TestCase):
         completed = subprocess.run([sys.executable, str(ROOT / "run_halo_v2.py"), "estimate", "--questions", "10", "--repetitions", "3", "--conditions", "4", "--stages", "3", "--max-requests", "100"], capture_output=True, text=True, env={**__import__("os").environ, "PYTHONPATH": str(ROOT / "src")})
         self.assertEqual(completed.returncode, 2)
         self.assertEqual(json.loads(completed.stdout)["estimated_requests"], 360)
+
+    def test_legacy_conversion_creates_pending_candidates_only(self):
+        articles, questions, manifest = build_candidates(ROOT)
+        self.assertEqual(len(articles), 10)
+        # The legacy corpus contains 33 base and 33 high-pressure questions.
+        self.assertEqual(len(questions), 66)
+        self.assertTrue(all(row["review_status"] == "pending" for row in articles))
+        self.assertTrue(all(row["annotation_status"] == "pending" for row in questions))
+        self.assertEqual(manifest["all_article_review_status"], "pending")
 
 
 if __name__ == "__main__":

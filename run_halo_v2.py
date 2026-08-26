@@ -31,6 +31,7 @@ def main() -> int:
     select.add_argument("--articles", type=Path, required=True); select.add_argument("--questions", type=Path, required=True)
     select.add_argument("--output-dir", type=Path, required=True); select.add_argument("--seed", type=int, required=True)
     select.add_argument("--dataset-version", required=True); select.add_argument("--target-articles", type=int)
+    select.add_argument("--min-chars", type=int, default=1500); select.add_argument("--max-chars", type=int, default=30000)
     estimate = sub.add_parser("estimate")
     estimate.add_argument("--questions", type=int, required=True); estimate.add_argument("--repetitions", type=int, required=True)
     estimate.add_argument("--conditions", type=int, required=True); estimate.add_argument("--stages", type=int, required=True)
@@ -51,7 +52,7 @@ def main() -> int:
         print(json.dumps({"articles": len(articles), "questions": len(questions), "status": "valid"}, ensure_ascii=False)); return 0
     if args.command == "select":
         articles, questions = read_jsonl(args.articles), read_jsonl(args.questions)
-        errors = validate_articles(articles, 1, 30000) + validate_questions(questions, {row.get("article_id") for row in articles})
+        errors = validate_articles(articles, args.min_chars, args.max_chars) + validate_questions(questions, {row.get("article_id") for row in articles})
         if errors: raise ValueError("Refusing selection: " + "; ".join(errors))
         selected_articles, selected_questions = approved_benchmark(articles, questions, args.seed, args.target_articles)
         args.output_dir.mkdir(parents=True, exist_ok=True)
