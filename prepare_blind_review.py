@@ -30,7 +30,18 @@ def load_articles(dataset_manifest: Path) -> dict[str, str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--run-dir", type=Path, required=True, help="Unzipped results/<run-id> directory")
+    parser.add_argument(
+        "--run-dir",
+        type=Path,
+        action="append",
+        required=True,
+        help="Unzipped results/<run-id> directory; repeat this option to mix multiple conditions",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        help="Directory for the combined blinded files; required when mixing multiple run directories",
+    )
     parser.add_argument(
         "--dataset-manifest",
         type=Path,
@@ -38,12 +49,16 @@ def main() -> int:
         help="Article-pack manifest used for the run",
     )
     args = parser.parse_args()
-    run_dir = args.run_dir.resolve()
-    records = read_jsonl(run_dir / "responses.jsonl")
+    run_dirs = [run_dir.resolve() for run_dir in args.run_dir]
+    output_dir = args.output_dir.resolve() if args.output_dir else run_dirs[0]
+    if len(run_dirs) > 1 and not args.output_dir:
+        raise ValueError("--output-dir is required when mixing multiple runs")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    records = [record for run_dir in run_dirs for record in read_jsonl(run_dir / "responses.jsonl")]
     if not records:
         raise ValueError("responses.jsonl is empty")
-    write_blind_review_files(run_dir, records, load_articles(args.dataset_manifest.resolve()))
-    print(run_dir / "blind_review_packets.csv")
+    write_blind_review_files(output_dir, records, load_articles(args.dataset_manifest.resolve()))
+    print(output_dir / "blind_review_packets.csv")
     return 0
 
 
