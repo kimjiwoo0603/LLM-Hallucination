@@ -21,6 +21,29 @@ def retry_delay_seconds(detail: str, attempt: int) -> float:
     return min(60.0, 2.0**attempt)
 
 
+def checker_supported_context(checker_response: str) -> tuple[str, int]:
+    """Return only article-supported checker items for the final editor.
+
+    The checker sees the M1 draft, but its full report must never become an
+    upstream shortcut through which M3 can read that draft.  A malformed report
+    therefore produces an empty context rather than falling back to raw text.
+    """
+    candidate = checker_response.strip()
+    if candidate.startswith("```"):
+        candidate = re.sub(r"^```(?:json)?\s*|\s*```$", "", candidate, flags=re.IGNORECASE)
+    try:
+        payload = json.loads(candidate)
+    except json.JSONDecodeError:
+        return "기사로 SUPPORTED로 확정된 항목이 없습니다.", 0
+    items = payload.get("supported_items") if isinstance(payload, dict) else None
+    if not isinstance(items, list):
+        return "기사로 SUPPORTED로 확정된 항목이 없습니다.", 0
+    clean_items = [item.strip() for item in items if isinstance(item, str) and item.strip()]
+    if not clean_items:
+        return "기사로 SUPPORTED로 확정된 항목이 없습니다.", 0
+    return "\n".join(f"- {item}" for item in clean_items), len(clean_items)
+
+
 class ProviderClient:
     def __init__(self, spec: dict[str, Any]):
         self.spec = spec
@@ -125,7 +148,12 @@ def run_batch(config_path: Path, output_root: Path, run_id: str, dry_run: bool) 
                 prompt = render_prompt(stage["prompt_template"], context, stage["id"])
                 answer = DryRunClient().complete(prompt) if dry_run else clients[stage["agent"]].complete(prompt)
                 context[stage["id"]] = answer
-                records.append({"run_id": run_id, "generated_at": utc_now(), "article_id": pack["article_id"], "source_type": pack["source_type"], "repetition": repetition, "question_id": question["question_id"], "question_type": question["type"], "question_condition": question.get("condition", "BASELINE"), "induction_strategy": question.get("induction_strategy"), "source_question_id": question.get("source_question_id"), "target_error": question["target_error"], "question": question["question"], "stage": stage["id"], "stage_role": stage.get("role", "answer_generation"), "agent": stage["agent"], "provider": agent["provider"], "model": agent["model"], "response": answer, "prompt_sha256": sha256_text(prompt), "response_sha256": sha256_text(answer), "article_sha256": sha256_text(article), "status": "PENDING_MANUAL_LABEL"})
+                if stage.get("role") == "article_grounded_checker":
+                    supported_context, supported_item_count = checker_supported_context(answer)
+                    context[f"{stage['id']}_SUPPORTED"] = supported_context
+                else:
+                    supported_item_count = 0
+                records.append({"run_id": run_id, "generated_at": utc_now(), "article_id": pack["article_id"], "source_type": pack["source_type"], "repetition": repetition, "question_id": question["question_id"], "question_type": question["type"], "question_condition": question.get("condition", "BASELINE"), "induction_strategy": question.get("induction_strategy"), "source_question_id": question.get("source_question_id"), "target_error": question["target_error"], "question": question["question"], "stage": stage["id"], "stage_role": stage.get("role", "answer_generation"), "agent": stage["agent"], "provider": agent["provider"], "model": agent["model"], "response": answer, "prompt_sha256": sha256_text(prompt), "response_sha256": sha256_text(answer), "article_sha256": sha256_text(article), "checker_supported_item_count": supported_item_count, "m3_input_policy": "checker_supported_only" if stage.get("role") == "grounded_final_editor" else None, "status": "PENDING_MANUAL_LABEL"})
                 write_jsonl(run_dir / "responses.jsonl", records)
                 write_label_template(run_dir / "labels.template.csv", records)
     write_jsonl(run_dir / "responses.jsonl", records)
