@@ -1,0 +1,119 @@
+{
+  "selection_seed": 20260827,
+  "design": "base/high-pressure question pairs are selected together; each full batch includes one pair per article before any article receives a second pair",
+  "repetitions": 3,
+  "conditions": 4,
+  "stages": 3,
+  "batches": [
+    {
+      "batch_id": "batch_01",
+      "question_count": 20,
+      "article_count": 10,
+      "base_questions": 10,
+      "high_pressure_questions": 10,
+      "question_ids": [
+        "V2C_A001_HP_Q003",
+        "V2C_A001_Q003",
+        "V2C_A002_HP_Q001",
+        "V2C_A002_Q001",
+        "V2C_A003_HP_Q003",
+        "V2C_A003_Q003",
+        "V2C_A004_HP_Q001",
+        "V2C_A004_Q001",
+        "V2C_A005_HP_Q002",
+        "V2C_A005_Q002",
+        "V2C_A006_HP_Q002",
+        "V2C_A006_Q002",
+        "V2C_A007_HP_Q002",
+        "V2C_A007_Q002",
+        "V2C_A008_HP_Q002",
+        "V2C_A008_Q002",
+        "V2C_A009_HP_Q003",
+        "V2C_A009_Q003",
+        "V2C_A010_HP_Q001",
+        "V2C_A010_Q001"
+      ],
+      "estimated_requests": 720
+    },
+    {
+      "batch_id": "batch_02",
+      "question_count": 20,
+      "article_count": 10,
+      "base_questions": 10,
+      "high_pressure_questions": 10,
+      "question_ids": [
+        "V2C_A001_HP_Q001",
+        "V2C_A001_Q001",
+        "V2C_A002_HP_Q002",
+        "V2C_A002_Q002",
+        "V2C_A003_HP_Q002",
+        "V2C_A003_Q002",
+        "V2C_A004_HP_Q002",
+        "V2C_A004_Q002",
+        "V2C_A005_HP_Q003",
+        "V2C_A005_Q003",
+        "V2C_A006_HP_Q003",
+        "V2C_A006_Q003",
+        "V2C_A007_HP_Q001",
+        "V2C_A007_Q001",
+        "V2C_A008_HP_Q003",
+        "V2C_A008_Q003",
+        "V2C_A009_HP_Q001",
+        "V2C_A009_Q001",
+        "V2C_A010_HP_Q002",
+        "V2C_A010_Q002"
+      ],
+      "estimated_requests": 720
+    },
+    {
+      "batch_id": "batch_03",
+      "question_count": 20,
+      "article_count": 10,
+      "base_questions": 10,
+      "high_pressure_questions": 10,
+      "question_ids": [
+        "V2C_A001_HP_Q004",
+        "V2C_A001_Q004",
+        "V2C_A002_HP_Q003",
+        "V2C_A002_Q003",
+        "V2C_A003_HP_Q001",
+        "V2C_A003_Q001",
+        "V2C_A004_HP_Q003",
+        "V2C_A004_Q003",
+        "V2C_A005_HP_Q001",
+        "V2C_A005_Q001",
+        "V2C_A006_HP_Q001",
+        "V2C_A006_Q001",
+        "V2C_A007_HP_Q003",
+        "V2C_A007_Q003",
+        "V2C_A008_HP_Q001",
+        "V2C_A008_Q001",
+        "V2C_A009_HP_Q002",
+        "V2C_A009_Q002",
+        "V2C_A010_HP_Q003",
+        "V2C_A010_Q003"
+      ],
+      "estimated_requests": 720
+    },
+    {
+      "batch_id": "batch_04",
+      "question_count": 6,
+      "article_count": 1,
+      "base_questions": 3,
+      "high_pressure_questions": 3,
+      "question_ids": [
+        "V2C_A001_HP_Q006",
+        "V2C_A001_Q006",
+        "V2C_A001_HP_Q002",
+        "V2C_A001_Q002",
+        "V2C_A001_HP_Q005",
+        "V2C_A001_Q005"
+      ],
+      "estimated_requests": 216
+    }
+  ],
+  "source_benchmark_sha256": {
+    "articles": "90da1a6f5aeb765f5dd49c0ea0ac8e6dae076b395b9055486c00f19ab8daacbc",
+    "questions": "e86960dac0060dc0147061aff09d4ac9b647840753f3b70107d172f0da4e1ca2"
+  }
+}

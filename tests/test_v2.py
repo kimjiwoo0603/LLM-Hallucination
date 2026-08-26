@@ -12,8 +12,9 @@ sys.path.insert(0, str(ROOT / "src"))
 from halo_runner.v2 import (approved_benchmark, exact_mcnemar_pvalue, normalize_url, read_v2_labels,
                             validate_articles, validate_questions, wilson_interval, write_adjudication)
 from halo_runner.v2_candidates import build_candidates
-from halo_runner.v2_candidates import apply_review_templates
+from halo_runner.v2_candidates import apply_review_templates, attest_user_provided_snapshot_candidates
 from halo_runner.v2_execution import build_primary_execution_configs
+from halo_runner.v2_batches import build_pair_batches
 from halo_runner.multi import run_batch
 
 
@@ -120,6 +121,39 @@ class HaloV2Tests(unittest.TestCase):
             self.assertEqual(len(records), 3)
             self.assertEqual(records[-1]["m3_input_policy"], "checker_supported_only")
             self.assertEqual(records[-1]["question_type"], "false_number")
+
+    def test_snapshot_attestation_preserves_no_url_limitation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            from halo_runner.core import read_jsonl, write_jsonl
+            article_row, question_row = article(status="pending"), question(status="pending")
+            article_row["source_article_id"] = "A001"; question_row["target_claim"] = "기사 밖 세부사항"
+            write_jsonl(root / "articles.jsonl", [article_row]); write_jsonl(root / "questions.jsonl", [question_row])
+            report = attest_user_provided_snapshot_candidates(root / "articles.jsonl", root / "questions.jsonl", root / "out", "research-team", "v2-test")
+            attested = read_jsonl(root / "out" / "articles.attested.jsonl")[0]
+            self.assertEqual(attested["review_status"], "approved")
+            self.assertTrue(attested["original_url"].startswith("snapshot://"))
+            self.assertIn("no_public_url", report["provenance_policy"])
+
+    def test_batch_plan_pairs_base_and_pressure_questions_before_runs(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); benchmark = root / "benchmark"; benchmark.mkdir()
+            from halo_runner.core import write_jsonl
+            write_jsonl(benchmark / "articles.jsonl", [article("A001"), article("A002")])
+            rows = []
+            for article_id in ("A001", "A002"):
+                for number in range(2):
+                    source_id = f"{article_id}_Q{number}"
+                    for origin in ("base", "high_pressure"):
+                        row = question(f"{source_id}_{origin}", article_id)
+                        row.update({"source_question_id": source_id, "candidate_origin": origin, "annotation_status": "approved"})
+                        rows.append(row)
+            write_jsonl(benchmark / "questions.jsonl", rows)
+            plan = build_pair_batches(benchmark, root / "batches", 7, repetitions=3)
+            self.assertEqual(plan["batches"][0]["question_count"], 4)
+            self.assertEqual(plan["batches"][0]["base_questions"], 2)
+            self.assertEqual(plan["batches"][0]["high_pressure_questions"], 2)
+            self.assertEqual(plan["batches"][0]["estimated_requests"], 144)
 
 
 if __name__ == "__main__":

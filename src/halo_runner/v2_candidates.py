@@ -16,6 +16,7 @@ from halo_runner.core import read_json, read_jsonl, sha256_text, write_json, wri
 
 DIFFICULTY_MAP = {"낮음": "EASY", "중간": "MEDIUM", "높음": "HARD"}
 QUESTION_TYPE_MAP = {
+    "NORMAL": "supported_control",
     "INFORMATION_ABSENCE": "unsupported_detail",
     "TEMPORAL": "unsupported_date",
     "DOMAIN_SPECIFIC": "unsupported_procedure",
@@ -63,7 +64,10 @@ def _candidate_question(source: dict[str, Any], article_id: str, origin: str) ->
     return {
         "question_id": f"V2C_{source['question_id']}",
         "article_id": article_id,
-        "source_question_id": source["question_id"],
+        # High-pressure items point back to their base item.  Preserve that
+        # pairing key so the pre-registered batching plan can never separate
+        # a pressure question from its matched baseline question.
+        "source_question_id": source.get("source_question_id", source["question_id"]),
         "question_type": QUESTION_TYPE_MAP.get(source_type, "pending_human_mapping"),
         "source_question_type": source_type,
         "difficulty": "ADVERSARIAL" if origin == "high_pressure" else DIFFICULTY_MAP.get(str(source.get("difficulty", "")), "HARD"),
@@ -232,4 +236,58 @@ def apply_review_templates(article_candidates: Path, question_candidates: Path, 
         "rule": "Only values supplied by a human review sheet were copied. Incomplete approval rows stop the import without writing partial output.",
     }
     write_json(output_dir / "review_import_report.json", report)
+    return report
+
+
+def attest_user_provided_snapshot_candidates(article_candidates: Path, question_candidates: Path, output_dir: Path, reviewer: str, dataset_version: str) -> dict[str, Any]:
+    """Freeze human-attested snapshots without inventing missing public URLs.
+
+    This path is only appropriate when the research team explicitly confirms
+    the supplied corpus and questions.  It keeps the source type visible in
+    every output so results cannot be represented as web-verified retrieval.
+    """
+    reviewer = reviewer.strip()
+    if not reviewer:
+        raise ValueError("reviewer is required for snapshot attestation")
+    articles, questions = read_jsonl(article_candidates), read_jsonl(question_candidates)
+    attested_articles, attested_questions = [], []
+    for article in articles:
+        row = dict(article)
+        source_id = str(row.get("source_article_id", row["article_id"]))
+        row.update({
+            "source_name": "research-team-provided immutable news snapshot",
+            "original_url": f"snapshot://halo-v1-user-provided/{source_id}",
+            "published_at": row.get("published_at") if row.get("published_at") not in {"", "unknown"} else "not recorded in supplied snapshot",
+            "category": "news",
+            "review_status": "approved",
+            "provenance_status": "research_team_attested_snapshot",
+            "provenance_note": "The research team confirmed the supplied article snapshot for article-grounded evaluation. No public URL was available; the immutable text hash is the reproducibility anchor.",
+            "reviewed_by": reviewer,
+            "review_decision": "approved_user_provided_snapshot",
+        })
+        attested_articles.append(row)
+    for question in questions:
+        row = dict(question)
+        target = str(row.get("target_claim", "")).strip()
+        row.update({
+            "false_premise": f"Human-attested v1 risk statement: {target}",
+            "evidence_basis": "Use the supplied immutable article snapshot as the decisive evidence source; the linked v1 ground_truth_candidates remain audit aids, not an automatic label.",
+            "annotation_status": "approved",
+            "reviewed_by": reviewer,
+            "review_decision": "approved_user_attestation_of_migrated_v1_question",
+        })
+        attested_questions.append(row)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    write_jsonl(output_dir / "articles.attested.jsonl", attested_articles)
+    write_jsonl(output_dir / "questions.attested.jsonl", attested_questions)
+    report = {
+        "dataset_version": dataset_version,
+        "reviewer": reviewer,
+        "article_count": len(attested_articles),
+        "question_count": len(attested_questions),
+        "provenance_policy": "research_team_attested_user_provided_snapshot_no_public_url",
+        "warning_for_reporting": "Describe this corpus as user-provided immutable article snapshots. Do not describe it as a public-URL-verified web crawl.",
+        "input_sha256": {"articles": sha256_text(article_candidates.read_text(encoding="utf-8")), "questions": sha256_text(question_candidates.read_text(encoding="utf-8"))},
+    }
+    write_json(output_dir / "snapshot_attestation_manifest.json", report)
     return report
