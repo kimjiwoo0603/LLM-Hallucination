@@ -4,6 +4,28 @@
 
 > 이 저장소에서는 기사 원문과 질문을 입력하면, 모델의 단계별 원본 답변과 수기 라벨링 양식을 자동으로 저장합니다. API 키는 저장소에 저장하지 않습니다.
 
+## HALO 2.0 (준비 중인 후속 연구)
+
+HALO 2.0은 v1과 v2 보정(calibration) 결과를 덮어쓰지 않는 별도 연구 경로입니다. 현재는 후보 기사·질문의 사람 승인, 고정 데이터셋 선택, 이중 블라인드 라벨링, 반복측정 분석을 지원하는 자동화 기반을 `feature/halo-2-pipeline` 브랜치에 추가했습니다.
+
+- 1차 지표: 기사 근거 환각 여부(0/1)
+- 2차 지표: 정확도(0/1/2), 유용성(1–5), abstention(0/1), 반복 실행 일관성
+- 제외 지표: 응답시간
+- 실제 기사·질문 승인, 라벨러 불일치 조정, 실험 실행은 자동으로 확정하지 않습니다.
+
+후속 연구의 절차와 고정 규칙은 [docs/halo_v2.md](docs/halo_v2.md), 후보 데이터 형식은 [datasets/v2/README.md](datasets/v2/README.md)에 있습니다.
+
+```powershell
+# 후보 데이터 스키마와 중복·승인 상태 점검
+python run_halo_v2.py validate --articles <articles.candidates.jsonl> --questions <questions.candidates.jsonl>
+
+# 사람 승인 후, seed와 버전을 기록한 고정 벤치마크 생성
+python run_halo_v2.py select --articles <articles.candidates.jsonl> --questions <questions.candidates.jsonl> --output-dir datasets/v2/benchmark/v2.0.0 --seed 20260827 --dataset-version halo-news-benchmark-v2.0.0
+
+# 실행 전 호출 수·예산 가정 확인 (실제 API 호출 없음)
+python run_halo_v2.py estimate --questions 40 --repetitions 3 --conditions 4 --stages 3 --max-requests 2000
+```
+
 ## 실험 구조
 
 ### 단일 에이전트 조건
