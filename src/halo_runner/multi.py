@@ -10,7 +10,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-from halo_runner.core import DryRunClient, read_json, read_jsonl, render_prompt, sha256_text, utc_now, write_json, write_jsonl, write_label_template
+from halo_runner.core import DryRunClient, read_json, read_jsonl, render_prompt, sha256_text, utc_now, write_blind_review_files, write_json, write_jsonl, write_label_template
 
 
 def retry_delay_seconds(detail: str, attempt: int) -> float:
@@ -115,11 +115,13 @@ def run_batch(config_path: Path, output_root: Path, run_id: str, dry_run: bool) 
     run_dir = output_root / run_id
     run_dir.mkdir(parents=True, exist_ok=False)
     work_items: list[tuple[dict[str, Any], str, dict[str, Any]]] = []
+    articles_by_id: dict[str, str] = {}
     for pack_ref in packs:
         pack = read_json(project_path(config_path, pack_ref["dataset_path"]))
         article = pack.get("article_text")
         if article is None:
             article = project_path(config_path, pack["article_path"]).read_text(encoding="utf-8")
+        articles_by_id[pack["article_id"]] = article
         questions = (
             read_jsonl(project_path(config_path, pack_ref["questions_path"]))
             if "questions_path" in pack_ref
@@ -153,10 +155,12 @@ def run_batch(config_path: Path, output_root: Path, run_id: str, dry_run: bool) 
                     context[f"{stage['id']}_SUPPORTED"] = supported_context
                 else:
                     supported_item_count = 0
-                records.append({"run_id": run_id, "generated_at": utc_now(), "article_id": pack["article_id"], "source_type": pack["source_type"], "repetition": repetition, "question_id": question["question_id"], "question_type": question["type"], "question_condition": question.get("condition", "BASELINE"), "induction_strategy": question.get("induction_strategy"), "source_question_id": question.get("source_question_id"), "target_error": question["target_error"], "question": question["question"], "stage": stage["id"], "stage_role": stage.get("role", "answer_generation"), "agent": stage["agent"], "provider": agent["provider"], "model": agent["model"], "response": answer, "prompt_sha256": sha256_text(prompt), "response_sha256": sha256_text(answer), "article_sha256": sha256_text(article), "checker_supported_item_count": supported_item_count, "m3_input_policy": "checker_supported_only" if stage.get("role") == "grounded_final_editor" else None, "status": "PENDING_MANUAL_LABEL"})
+                records.append({"run_id": run_id, "generated_at": utc_now(), "article_id": pack["article_id"], "source_type": pack["source_type"], "repetition": repetition, "question_id": question["question_id"], "question_type": question["type"], "question_condition": question.get("condition", "BASELINE"), "induction_strategy": question.get("induction_strategy"), "source_question_id": question.get("source_question_id"), "target_error": question["target_error"], "question": question["question"], "stage": stage["id"], "stage_role": stage.get("role", "answer_generation"), "agent": stage["agent"], "provider": agent["provider"], "model": agent["model"], "response": answer, "prompt_sha256": sha256_text(prompt), "response_sha256": sha256_text(answer), "article_sha256": sha256_text(article), "checker_supported_item_count": supported_item_count, "m3_input_policy": stage.get("input_policy", "checker_supported_only") if stage.get("role") == "grounded_final_editor" else None, "status": "PENDING_MANUAL_LABEL"})
                 write_jsonl(run_dir / "responses.jsonl", records)
                 write_label_template(run_dir / "labels.template.csv", records)
+                write_blind_review_files(run_dir, records, articles_by_id)
     write_jsonl(run_dir / "responses.jsonl", records)
     write_label_template(run_dir / "labels.template.csv", records)
+    write_blind_review_files(run_dir, records, articles_by_id)
     return run_dir
 
