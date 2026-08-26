@@ -236,10 +236,10 @@ python prepare_blind_review.py `
 | --- | --- | --- |
 | Hallucination | `0` / `1` | 기사 근거가 없는 사실을 생성했는지 |
 | Severity | `0`~`5` | 오류의 심각도 |
-| Propagation | `Initial` | 해당 단계에서 처음 발생 |
-| Propagation | `Maintained` | 이전 단계의 오류가 유지됨 |
-| Propagation | `Removed` | 이전 단계의 오류가 제거됨 |
-| Propagation | `None` | 환각이 없음 |
+| Propagation | `Initial` | 블라인드 라벨을 잠근 뒤 단계 순서로 자동 계산: 처음 발생 |
+| Propagation | `Maintained` | 블라인드 라벨을 잠근 뒤 단계 순서로 자동 계산: 이전 오류 유지 |
+| Propagation | `Removed` | 블라인드 라벨을 잠근 뒤 단계 순서로 자동 계산: 이전 오류 제거 |
+| Propagation | `None` | 블라인드 라벨을 잠근 뒤 단계 순서로 자동 계산: 환각 없음 |
 
 라벨 작성 후에는 아래 명령으로 집계할 수 있습니다.
 
