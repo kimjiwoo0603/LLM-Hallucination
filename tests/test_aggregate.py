@@ -9,11 +9,20 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from aggregate_results import read_blind_key, read_labels
+from aggregate_results import infer_blind_propagation, read_blind_key, read_labels
 from prepare_blind_review import load_articles
 
 
 class AggregateTests(unittest.TestCase):
+    def test_blind_propagation_is_derived_after_labels(self):
+        records = [
+            {"run_id": "run", "article_id": "A001", "question_id": "Q001", "repetition": 1, "status": "LABELED", "hallucination": 1},
+            {"run_id": "run", "article_id": "A001", "question_id": "Q001", "repetition": 1, "status": "LABELED", "hallucination": 1},
+            {"run_id": "run", "article_id": "A001", "question_id": "Q001", "repetition": 1, "status": "LABELED", "hallucination": 0},
+        ]
+        infer_blind_propagation(records)
+        self.assertEqual([record["propagation"] for record in records], ["Initial", "Maintained", "Removed"])
+
     def test_prepare_blind_review_mixes_multiple_runs(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -53,9 +62,9 @@ class AggregateTests(unittest.TestCase):
             labels_path = root / "blind_labels.csv"
             key_path = root / "blind_key.csv"
             with labels_path.open("w", encoding="utf-8", newline="") as handle:
-                writer = csv.DictWriter(handle, fieldnames=["blind_id", "hallucination", "severity", "propagation", "reviewer", "notes"])
+                writer = csv.DictWriter(handle, fieldnames=["blind_id", "hallucination", "severity", "reviewer", "notes"])
                 writer.writeheader()
-                writer.writerow({"blind_id": "B0001", "hallucination": "1", "severity": "3", "propagation": "Initial", "reviewer": "R1", "notes": "근거 없음"})
+                writer.writerow({"blind_id": "B0001", "hallucination": "1", "severity": "3", "reviewer": "R1", "notes": "근거 없음"})
             with key_path.open("w", encoding="utf-8", newline="") as handle:
                 writer = csv.DictWriter(handle, fieldnames=["blind_id", "article_id", "question_id", "repetition", "stage"])
                 writer.writeheader()
