@@ -28,6 +28,18 @@ def load_articles(dataset_manifest: Path) -> dict[str, str]:
     return articles
 
 
+def complete_pipeline_records(records: list[dict]) -> list[dict]:
+    """Drop question repetitions missing one or more stages after a failed run."""
+    expected_stages_by_run: dict[str, set[str]] = {}
+    groups: dict[tuple[str, str, str, int], list[dict]] = {}
+    for record in records:
+        run_id = record["run_id"]
+        expected_stages_by_run.setdefault(run_id, set()).add(record["stage"])
+        key = (run_id, record.get("article_id", "ARTICLE_001"), record["question_id"], int(record["repetition"]))
+        groups.setdefault(key, []).append(record)
+    return [record for key, group in groups.items() if {record["stage"] for record in group} == expected_stages_by_run[key[0]] for record in group]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -54,7 +66,7 @@ def main() -> int:
     if len(run_dirs) > 1 and not args.output_dir:
         raise ValueError("--output-dir is required when mixing multiple runs")
     output_dir.mkdir(parents=True, exist_ok=True)
-    records = [record for run_dir in run_dirs for record in read_jsonl(run_dir / "responses.jsonl")]
+    records = complete_pipeline_records([record for run_dir in run_dirs for record in read_jsonl(run_dir / "responses.jsonl")])
     if not records:
         raise ValueError("responses.jsonl is empty")
     write_blind_review_files(output_dir, records, load_articles(args.dataset_manifest.resolve()))
