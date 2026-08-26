@@ -7,7 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from halo_runner.multi import checker_supported_context, retry_delay_seconds, run_batch
+from halo_runner.multi import checker_supported_context, is_daily_quota_exhausted, retry_delay_seconds, run_batch
 
 
 class MultiRunnerTests(unittest.TestCase):
@@ -65,6 +65,8 @@ class MultiRunnerTests(unittest.TestCase):
     def test_rate_limit_retry_delay_uses_provider_hint(self):
         self.assertEqual(retry_delay_seconds("Please try again in 977ms.", 0), 1.0)
         self.assertEqual(retry_delay_seconds("Try again in 2.5s.", 0), 2.5)
+        self.assertTrue(is_daily_quota_exhausted("Quota exceeded for metric: generate_content_free_tier_requests, limit: 20, model: gemini; GenerateRequestsPerDay"))
+        self.assertFalse(is_daily_quota_exhausted("Please try again in 2.5s."))
 
     def test_external_high_pressure_question_set_is_recorded(self):
         with tempfile.TemporaryDirectory() as temporary:
