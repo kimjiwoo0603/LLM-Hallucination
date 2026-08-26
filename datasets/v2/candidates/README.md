@@ -8,7 +8,7 @@
 - 질문 후보: 66개 (기본 33개, 압박형 33개)
 - 모든 기사: `review_status = pending`
 - 모든 질문: `annotation_status = pending`
-- 기본 본문 길이 1,500자 미만 경고: `V2C_A002`, `V2C_A003`, `V2C_A010`
+- 기본 본문 길이 1,000자 미만 경고: 없음
 
 ## 검토자가 확인할 것
 
@@ -28,6 +28,10 @@
 ```powershell
 python run_halo_v2.py apply-reviews --articles datasets/v2/candidates/articles.candidates.jsonl --questions datasets/v2/candidates/questions.candidates.jsonl --article-reviews datasets/v2/candidates/review_templates/article_review.template.csv --question-reviews datasets/v2/candidates/review_templates/question_review.template.csv --output-dir datasets/v2/reviewed
 ```
+
+## 공개 원문 URL이 없는 경우
+
+연구팀이 제공한 원문 스냅샷 자체를 평가 코퍼스로 사용하기로 명시적으로 결정했다면, `attest-snapshot` 명령으로 별도 `attested/` 사본을 만들 수 있다. 이는 크롤링·공개 URL 검증을 했다는 뜻이 아니며, 보고서에는 반드시 **“연구팀 제공 불변 원문 스냅샷”**이라고 기술한다. 원문 텍스트 해시와 검토자 이름은 남지만, 공개 원문 URL을 만들어내지는 않는다.
 
 ## 재현성
 

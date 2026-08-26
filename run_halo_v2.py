@@ -15,7 +15,7 @@ from halo_runner.core import read_jsonl, write_jsonl
 from halo_runner.v2 import (approved_benchmark, final_records, read_v2_labels, summarize_final_labels,
                             validate_articles, validate_questions, write_adjudication, write_dataset_manifest,
                             write_v2_blind_packet)
-from halo_runner.v2_candidates import apply_review_templates
+from halo_runner.v2_candidates import apply_review_templates, attest_user_provided_snapshot_candidates
 
 
 def articles_from_manifest(path: Path) -> dict[str, str]:
@@ -27,12 +27,12 @@ def main() -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     validate = sub.add_parser("validate")
     validate.add_argument("--articles", type=Path, required=True); validate.add_argument("--questions", type=Path, required=True)
-    validate.add_argument("--min-chars", type=int, default=1500); validate.add_argument("--max-chars", type=int, default=30000)
+    validate.add_argument("--min-chars", type=int, default=1000); validate.add_argument("--max-chars", type=int, default=30000)
     select = sub.add_parser("select")
     select.add_argument("--articles", type=Path, required=True); select.add_argument("--questions", type=Path, required=True)
     select.add_argument("--output-dir", type=Path, required=True); select.add_argument("--seed", type=int, required=True)
     select.add_argument("--dataset-version", required=True); select.add_argument("--target-articles", type=int)
-    select.add_argument("--min-chars", type=int, default=1500); select.add_argument("--max-chars", type=int, default=30000)
+    select.add_argument("--min-chars", type=int, default=1000); select.add_argument("--max-chars", type=int, default=30000)
     estimate = sub.add_parser("estimate")
     estimate.add_argument("--questions", type=int, required=True); estimate.add_argument("--repetitions", type=int, required=True)
     estimate.add_argument("--conditions", type=int, required=True); estimate.add_argument("--stages", type=int, required=True)
@@ -48,6 +48,9 @@ def main() -> int:
     apply_reviews.add_argument("--articles", type=Path, required=True); apply_reviews.add_argument("--questions", type=Path, required=True)
     apply_reviews.add_argument("--article-reviews", type=Path, required=True); apply_reviews.add_argument("--question-reviews", type=Path, required=True)
     apply_reviews.add_argument("--output-dir", type=Path, required=True)
+    attest = sub.add_parser("attest-snapshot")
+    attest.add_argument("--articles", type=Path, required=True); attest.add_argument("--questions", type=Path, required=True)
+    attest.add_argument("--output-dir", type=Path, required=True); attest.add_argument("--reviewer", required=True); attest.add_argument("--dataset-version", required=True)
     args = parser.parse_args()
     if args.command == "validate":
         articles, questions = read_jsonl(args.articles), read_jsonl(args.questions)
@@ -90,6 +93,9 @@ def main() -> int:
         print(args.output); return 0
     if args.command == "apply-reviews":
         report = apply_review_templates(args.articles, args.questions, args.article_reviews, args.question_reviews, args.output_dir)
+        print(json.dumps(report, ensure_ascii=False)); return 0
+    if args.command == "attest-snapshot":
+        report = attest_user_provided_snapshot_candidates(args.articles, args.questions, args.output_dir, args.reviewer, args.dataset_version)
         print(json.dumps(report, ensure_ascii=False)); return 0
     return 1
 
