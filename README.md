@@ -4,6 +4,28 @@
 
 > 이 저장소에서는 기사 원문과 질문을 입력하면, 모델의 단계별 원본 답변과 수기 라벨링 양식을 자동으로 저장합니다. API 키는 저장소에 저장하지 않습니다.
 
+## HALO 2.0 (준비 중인 후속 연구)
+
+HALO 2.0은 v1과 v2 보정(calibration) 결과를 덮어쓰지 않는 별도 연구 경로입니다. 현재는 후보 기사·질문의 사람 승인, 고정 데이터셋 선택, 이중 블라인드 라벨링, 반복측정 분석을 지원하는 자동화 기반을 `feature/halo-2-pipeline` 브랜치에 추가했습니다.
+
+- 1차 지표: 기사 근거 환각 여부(0/1)
+- 2차 지표: 정확도(0/1/2), 유용성(1–5), abstention(0/1), 반복 실행 일관성
+- 제외 지표: 응답시간
+- 실제 기사·질문 승인, 라벨러 불일치 조정, 실험 실행은 자동으로 확정하지 않습니다.
+
+후속 연구의 절차와 고정 규칙은 [docs/halo_v2.md](docs/halo_v2.md), 후보 데이터 형식은 [datasets/v2/README.md](datasets/v2/README.md)에 있습니다.
+
+```powershell
+# 후보 데이터 스키마와 중복·승인 상태 점검
+python run_halo_v2.py validate --articles <articles.candidates.jsonl> --questions <questions.candidates.jsonl>
+
+# 사람 승인 후, seed와 버전을 기록한 고정 벤치마크 생성
+python run_halo_v2.py select --articles <articles.candidates.jsonl> --questions <questions.candidates.jsonl> --output-dir datasets/v2/benchmark/v2.0.0 --seed 20260827 --dataset-version halo-news-benchmark-v2.0.0
+
+# 실행 전 호출 수·예산 가정 확인 (실제 API 호출 없음)
+python run_halo_v2.py estimate --questions 40 --repetitions 3 --conditions 4 --stages 3 --max-requests 2000
+```
+
 ## 실험 구조
 
 ### 단일 에이전트 조건
@@ -67,6 +89,29 @@ Same-model gated: M2의 SUPPORTED 항목만 → M3
 
 두 조건은 모델, M1, M2, 기사·질문, 샘플링 설정이 같고 **M3 입력 전달 방식만 다릅니다.** 따라서 두 조건의 차이는 정보 게이팅 효과로 해석합니다. 기존 단일 에이전트 결과는 역사적 기준선으로 보존하되, raw와 gated의 차이를 “순수한 멀티 구조 효과”로 단정하지 않습니다.
 
+## v2: 프롬프트 효과와 파이프라인 효과를 분리하는 보정 실험
+
+v2는 기존 결과를 덮어쓰지 않는 **별도 사전 보정(calibration) 실험**입니다. 같은 GPT-4.1, `temperature=0`, `max_tokens=1000`, 기사·질문·반복 수, 그리고 아래 공통 기사-근거 제약을 네 조건의 모든 단계에 동일하게 적용합니다.
+
+> 사실 판단의 유일한 근거는 제공된 기사입니다. 기사에 직접 명시되지 않은 정보는 일반지식, 추론, 외부 정보 또는 사용자의 주장으로 보완하지 않습니다. 기사로 확인되지 않으면 “기사에서 확인할 수 없습니다”라고 답합니다.
+
+| 조건 | topology | M3 정보 전달 | 비교로 알 수 있는 것 |
+| --- | --- | --- | --- |
+| `single_raw` | 자기수정 | 초안 + 자기검토 전체 | 자기수정 기준선 |
+| `single_gated` | 자기수정 | 자기검토의 `SUPPORTED` 항목만 | 단일 조건에서의 게이팅 효과 |
+| `multi_raw` | 생성자-검증자-편집자 분리 | 초안 + 검증 보고서 전체 | 역할 분리형 raw 파이프라인 |
+| `multi_gated` | 생성자-검증자-편집자 분리 | `SUPPORTED` 항목만 | 역할 분리형 게이팅 파이프라인 |
+
+`single_raw` 대 `single_gated`, `multi_raw` 대 `multi_gated`는 각각 정보 게이팅 효과를 보여 줍니다. `single_raw` 대 `multi_raw`, `single_gated` 대 `multi_gated`는 역할 분리 파이프라인의 추가 효과를 탐색합니다. 같은 모델을 여러 번 호출한 구조에서는 “에이전트 수만의 순수 효과”를 주장하지 않고, **역할 지시와 정보 전달 규칙을 포함한 파이프라인 개입 효과**로 해석합니다.
+
+v2 보정 세트는 기사 4건 × 질문 3종 = 12문항으로 구성됩니다.
+
+- `SUPPORTED_SYNTHESIS`: 기사 안의 정보를 종합해 답할 수 있는 질문
+- `MIXED_GROUNDING`: 기사 안의 정보와 확인 불가 세부사항을 구분해야 하는 질문
+- `HIGH_PRESSURE_FALSE_PREMISE`: 거짓 내부자료 전제로 구체 정보를 강요하는 질문
+
+이 12문항은 본 통계와 합치지 않습니다. 네 조건을 각 1회 실행해 환각률이 전부 0% 또는 100%로 몰리지 않고, 기사 근거 답변이 가능한지 확인한 뒤에만 더 큰 고정 본실험 세트를 확정합니다.
+
 ### 기사 밖 내용 제거 제약
 
 완료된 단일 에이전트 결과와 그 설정 파일은 변경하지 않습니다. 이후 비교를 위해 멀티 M2와 M3에는 단일 S2와 완전히 같은 아래 제약 문구를 적용합니다.
@@ -115,6 +160,7 @@ datasets/article_packs/manifest.jsonl
 | `Run HALO multi-provider experiment` | GPT 초안 → Gemini checker → GPT 최종 편집 비교 실험 |
 | `Run HALO multi-agent same-model control` | GPT 초안 → GPT-4.1 checker → GPT 최종 편집 통제 실험 |
 | `Run HALO same-model raw-passthrough ablation` | GPT checker의 M1 원문·보고서 전체 전달 효과 측정 |
+| `Run HALO v2 calibration (prompt vs structure)` | 네 v2 조건의 사전 보정 실험 |
 
 ### 1. 빠른 테스트: 기사 1개·질문 1개
 
@@ -259,4 +305,3 @@ python aggregate_results.py --run-dir results/<run-id> --labels results/<run-id>
 - 기본 조건과 고강도 조건의 결과를 같은 지표로 섞지 않고, 조건별로 구분해 해석합니다.
 - AI 보조 분석 결과는 예비 판정이며, 최종 연구 라벨과 가설검정에는 블라인드 수기 검토 결과만 사용합니다.
 - `same-model raw`와 `same-model gated`의 M3 차이는 정보 게이팅 효과이며, 이를 모델 다양성이나 일반적 멀티 에이전트 효과로 과장하지 않습니다.
-
