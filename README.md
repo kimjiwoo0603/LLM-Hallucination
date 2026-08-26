@@ -56,6 +56,17 @@ M3: GPT-4.1 최종 편집
 
 역할, 기사·질문 입력, checker의 JSON 형식, M3 전달 방식은 Gemini checker 조건과 같습니다. 따라서 두 멀티 조건의 차이는 **M2 checker 모델만 Gemini 3.6 Flash인지 GPT-4.1인지**입니다.
 
+### Raw-passthrough ablation (정보 게이팅 통제)
+
+`same-model control`과 별도로, GPT-4.1 checker를 쓰되 M3에 M1 초안 원문과 M2 보고서 전체를 전달하는 조건을 둡니다.
+
+```text
+Same-model raw:   M1 원문 + M2 전체 보고서 → M3
+Same-model gated: M2의 SUPPORTED 항목만 → M3
+```
+
+두 조건은 모델, M1, M2, 기사·질문, 샘플링 설정이 같고 **M3 입력 전달 방식만 다릅니다.** 따라서 두 조건의 차이는 정보 게이팅 효과로 해석합니다. 기존 단일 에이전트 결과는 역사적 기준선으로 보존하되, raw와 gated의 차이를 “순수한 멀티 구조 효과”로 단정하지 않습니다.
+
 ### 기사 밖 내용 제거 제약
 
 완료된 단일 에이전트 결과와 그 설정 파일은 변경하지 않습니다. 이후 비교를 위해 멀티 M2와 M3에는 단일 S2와 완전히 같은 아래 제약 문구를 적용합니다.
@@ -103,6 +114,7 @@ datasets/article_packs/manifest.jsonl
 | `Run HALO single-agent ChatGPT high-pressure experiment` | 고강도 질문으로 단일 에이전트 실험 |
 | `Run HALO multi-provider experiment` | GPT 초안 → Gemini checker → GPT 최종 편집 비교 실험 |
 | `Run HALO multi-agent same-model control` | GPT 초안 → GPT-4.1 checker → GPT 최종 편집 통제 실험 |
+| `Run HALO same-model raw-passthrough ablation` | GPT checker의 M1 원문·보고서 전체 전달 효과 측정 |
 
 ### 1. 빠른 테스트: 기사 1개·질문 1개
 
@@ -150,6 +162,10 @@ Gemini 무료 사용량은 일일 호출 한도가 있으므로, 전체 33개 �
 
 `Run HALO multi-agent same-model control`을 선택합니다. 입력값과 `Question condition` 선택 방식은 멀티 에이전트 조건과 같습니다. Gemini API 키나 Gemini 사용량은 필요하지 않으며 `OPENAI_API_KEY`만 사용합니다.
 
+### 5. 정보 게이팅 효과 실행
+
+`Run HALO same-model raw-passthrough ablation`을 **same-model control과 같은 기사·질문·반복 수**로 실행합니다. 두 결과의 M3를 비교하면, M1 원문을 차단하고 `SUPPORTED` 항목만 전달한 효과를 측정할 수 있습니다.
+
 ## API 키 설정
 
 GitHub 저장소의 **Settings → Secrets and variables → Actions**에서 아래 이름으로 등록합니다.
@@ -179,7 +195,10 @@ API 키 값은 코드, 설정 파일, 결과 파일, Git 커밋에 저장하지 
 results/<run-id>/
  ├── manifest.json
  ├── responses.jsonl
- └── labels.template.csv
+ ├── labels.template.csv
+ ├── blind_review_packets.csv
+ ├── blind_labels.template.csv
+ └── blind_key.coordinator_only.csv
 ```
 
 | 파일 | 설명 |
@@ -187,12 +206,20 @@ results/<run-id>/
 | `manifest.json` | 실행 시간, 선택된 질문 수, 모델·에이전트 설정 |
 | `responses.jsonl` | 질문별·단계별 원본 답변 및 해시 |
 | `labels.template.csv` | 사람이 환각 여부를 판정할 수 있는 라벨 양식 |
+| `blind_review_packets.csv` | 조건·모델·단계명을 숨긴 사람용 기사·질문·응답 검토본 |
+| `blind_labels.template.csv` | 블라인드 검토자가 작성할 라벨 양식 |
+| `blind_key.coordinator_only.csv` | 블라인드 ID와 조건·모델·단계를 연결하는 연구책임자 전용 키 |
 
 각 응답에는 기사 ID, 질문 ID, 질문 조건, 단계 역할, 모델, 원문 응답, 프롬프트·응답·기사 해시가 기록됩니다.
 
 ## 수기 라벨링 기준
 
-자동 실행은 답변을 생성하고 보존하는 역할을 합니다. 최종 연구 라벨은 기사 원문과 Ground Truth를 기준으로 사람이 확정합니다.
+자동 실행은 답변을 생성하고 보존하는 역할을 합니다. AI 보조 판독은 탐색용으로만 사용할 수 있고, **최종 연구 수치에는 사용하지 않습니다.** 최종 연구 라벨은 기사 원문과 Ground Truth를 기준으로 사람이 확정합니다.
+
+1. 연구책임자는 `blind_review_packets.csv`와 `blind_labels.template.csv`만 검토자에게 전달합니다.
+2. 검토자는 조건·모델·단계 정보를 모른 채 라벨을 작성합니다. 가능하면 서로 독립적인 2명이 검토합니다.
+3. 두 검토자의 불일치를 해결하고 라벨을 잠근 뒤에만 책임자가 `blind_key.coordinator_only.csv`를 사용합니다.
+4. 키 파일은 검토자에게 공유하지 않습니다.
 
 | 항목 | 값 | 의미 |
 | --- | --- | --- |
@@ -206,7 +233,7 @@ results/<run-id>/
 라벨 작성 후에는 아래 명령으로 집계할 수 있습니다.
 
 ```powershell
-python aggregate_results.py --run-dir results/<run-id> --labels results/<run-id>/labels.template.csv
+python aggregate_results.py --run-dir results/<run-id> --labels results/<run-id>/blind_labels.template.csv --blind-key results/<run-id>/blind_key.coordinator_only.csv
 ```
 
 집계 결과는 단계별 환각 비율, 평균 심각도, 질문별 변화 양상을 확인하는 데 사용합니다.
@@ -217,5 +244,6 @@ python aggregate_results.py --run-dir results/<run-id> --labels results/<run-id>
 - 이전 실행 결과는 덮어쓰지 않고 새 실행 폴더에 저장합니다.
 - 기사에 없는 정보를 정답처럼 추가하지 않습니다.
 - 기본 조건과 고강도 조건의 결과를 같은 지표로 섞지 않고, 조건별로 구분해 해석합니다.
-- AI 보조 분석 결과는 예비 판정이며, 최종 연구 라벨은 수기 검토로 확정합니다.
+- AI 보조 분석 결과는 예비 판정이며, 최종 연구 라벨과 가설검정에는 블라인드 수기 검토 결과만 사용합니다.
+- `same-model raw`와 `same-model gated`의 M3 차이는 정보 게이팅 효과이며, 이를 모델 다양성이나 일반적 멀티 에이전트 효과로 과장하지 않습니다.
 
