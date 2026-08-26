@@ -17,16 +17,16 @@ from halo_runner.core import read_jsonl, write_jsonl  # noqa: E402
 REQUIRED_LABEL_COLUMNS = {
     "question_id", "repetition", "stage", "hallucination", "severity", "propagation", "reviewer", "notes"
 }
-REQUIRED_BLIND_LABEL_COLUMNS = {"blind_id", "hallucination", "severity", "propagation", "reviewer", "notes"}
+REQUIRED_BLIND_LABEL_COLUMNS = {"blind_id", "hallucination", "severity", "reviewer", "notes"}
 
 
-def validate_label_values(row: dict[str, str], line_number: int) -> None:
+def validate_label_values(row: dict[str, str], line_number: int, require_propagation: bool) -> None:
     if row["hallucination"] not in {"0", "1"}:
         raise ValueError(f"hallucination must be 0 or 1 at CSV line {line_number}")
     severity = int(row["severity"])
     if not 0 <= severity <= 5:
         raise ValueError(f"severity must be 0..5 at CSV line {line_number}")
-    if row["propagation"] not in {"Initial", "Maintained", "Removed", "None"}:
+    if require_propagation and row["propagation"] not in {"Initial", "Maintained", "Removed", "None"}:
         raise ValueError(f"Invalid propagation at CSV line {line_number}")
 
 
@@ -43,7 +43,7 @@ def read_labels(path: Path) -> tuple[str, dict[Any, dict[str, str]]]:
             key: Any = row["blind_id"] if blind_mode else (row["question_id"], int(row["repetition"]), row["stage"])
             if key in labels:
                 raise ValueError(f"Duplicate label at CSV line {line_number}: {key}")
-            validate_label_values(row, line_number)
+            validate_label_values(row, line_number, require_propagation=not blind_mode)
             labels[key] = row
     return ("blind" if blind_mode else "standard"), labels
 
@@ -98,6 +98,23 @@ def summarize(records: list[dict[str, Any]], include_question: bool) -> list[dic
     return rows
 
 
+def infer_blind_propagation(records: list[dict[str, Any]]) -> None:
+    """Infer stage-to-stage propagation only after blinded factual labels lock."""
+    groups: dict[tuple[str, str, str, int], list[dict[str, Any]]] = defaultdict(list)
+    for record in records:
+        groups[(record["run_id"], record.get("article_id", "ARTICLE_001"), record["question_id"], record["repetition"])].append(record)
+    for group in groups.values():
+        prior_hallucination = False
+        for record in group:
+            if record["status"] != "LABELED":
+                continue
+            if record["hallucination"]:
+                record["propagation"] = "Maintained" if prior_hallucination else "Initial"
+                prior_hallucination = True
+            else:
+                record["propagation"] = "Removed" if prior_hallucination else "None"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--run-dir", type=Path, required=True)
@@ -126,6 +143,8 @@ def main() -> int:
                 "notes": label["notes"],
             }
         joined.append(record)
+    if label_mode == "blind":
+        infer_blind_propagation(joined)
     write_jsonl(run_dir / "labeled_responses.jsonl", joined)
     write_summary(run_dir / "stage_summary.csv", summarize(joined, include_question=False))
     write_summary(run_dir / "question_stage_summary.csv", summarize(joined, include_question=True))
