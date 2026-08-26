@@ -221,10 +221,15 @@ results/<run-id>/
 3. 두 검토자의 불일치를 해결하고 라벨을 잠근 뒤에만 책임자가 `blind_key.coordinator_only.csv`를 사용합니다.
 4. 키 파일은 검토자에게 공유하지 않습니다.
 
-이미 끝난 실행에 블라인드 파일이 없다면, 결과 ZIP을 푼 뒤 아래 명령으로 생성합니다.
+이미 끝난 실행에 블라인드 파일이 없다면, 결과 ZIP을 푼 뒤 아래 명령으로 생성합니다. 조건 비교 연구에서는 각 조건을 따로 검토하지 말고, 모든 조건의 결과를 한 파일로 섞습니다.
 
 ```powershell
-python prepare_blind_review.py --run-dir results/<기존-run-id>
+python prepare_blind_review.py `
+  --run-dir results/<single-run-id> `
+  --run-dir results/<same-model-raw-run-id> `
+  --run-dir results/<same-model-gated-run-id> `
+  --run-dir results/<gemini-checker-run-id> `
+  --output-dir review/combined
 ```
 
 | 항목 | 값 | 의미 |
