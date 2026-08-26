@@ -10,10 +10,21 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from aggregate_results import infer_blind_propagation, read_blind_key, read_labels
-from prepare_blind_review import load_articles
+from prepare_blind_review import complete_pipeline_records, load_articles
 
 
 class AggregateTests(unittest.TestCase):
+    def test_incomplete_pipeline_is_excluded_from_blind_review(self):
+        complete = [
+            {"run_id": "run", "article_id": "A001", "question_id": "Q001", "repetition": 1, "stage": stage}
+            for stage in ("M1", "M2", "M3")
+        ]
+        incomplete = [
+            {"run_id": "run", "article_id": "A001", "question_id": "Q002", "repetition": 1, "stage": stage}
+            for stage in ("M1", "M2")
+        ]
+        self.assertEqual(len(complete_pipeline_records(complete + incomplete)), 3)
+
     def test_blind_propagation_is_derived_after_labels(self):
         records = [
             {"run_id": "run", "article_id": "A001", "question_id": "Q001", "repetition": 1, "status": "LABELED", "hallucination": 1},
