@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import csv
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -54,6 +55,51 @@ def write_label_template(path: Path, records: list[dict[str, Any]]) -> None:
         writer.writeheader()
         for record in records:
             writer.writerow({key: record.get(key, "") for key in ("question_id", "repetition", "stage")})
+
+
+def write_blind_review_files(run_dir: Path, records: list[dict[str, Any]], articles_by_id: dict[str, str]) -> None:
+    """Create a human-review packet that hides experimental condition metadata.
+
+    The coordinator-only key is deliberately separate from the packet sent to
+    reviewers.  It must not be shared with reviewers until labels are locked.
+    """
+    sortable: list[tuple[str, dict[str, Any]]] = []
+    for record in records:
+        identity = "|".join(
+            str(record.get(key, ""))
+            for key in ("run_id", "article_id", "question_id", "repetition", "stage", "response_sha256")
+        )
+        sortable.append((sha256_text(identity), record))
+    sortable.sort(key=lambda pair: pair[0])
+
+    packet_fields = ["blind_id", "article", "question", "response"]
+    key_fields = [
+        "blind_id", "run_id", "article_id", "question_id", "repetition", "stage",
+        "question_condition", "agent", "provider", "model",
+    ]
+    label_fields = ["blind_id", "hallucination", "severity", "propagation", "reviewer", "notes"]
+    with (run_dir / "blind_review_packets.csv").open("w", encoding="utf-8", newline="") as packet_handle, \
+         (run_dir / "blind_key.coordinator_only.csv").open("w", encoding="utf-8", newline="") as key_handle, \
+         (run_dir / "blind_labels.template.csv").open("w", encoding="utf-8", newline="") as label_handle:
+        packet_writer = csv.DictWriter(packet_handle, fieldnames=packet_fields)
+        key_writer = csv.DictWriter(key_handle, fieldnames=key_fields)
+        label_writer = csv.DictWriter(label_handle, fieldnames=label_fields)
+        packet_writer.writeheader()
+        key_writer.writeheader()
+        label_writer.writeheader()
+        for index, (_, record) in enumerate(sortable, start=1):
+            blind_id = f"B{index:04d}"
+            article_id = str(record.get("article_id", "ARTICLE_001"))
+            packet_writer.writerow(
+                {
+                    "blind_id": blind_id,
+                    "article": articles_by_id.get(article_id, ""),
+                    "question": record.get("question", ""),
+                    "response": record.get("response", ""),
+                }
+            )
+            key_writer.writerow({"blind_id": blind_id, **{field: record.get(field, "") for field in key_fields if field != "blind_id"}})
+            label_writer.writerow({"blind_id": blind_id})
 
 
 def resolve_project_path(config_path: Path, value: str) -> Path:
@@ -177,10 +223,15 @@ class DryRunClient:
 
 
 def render_prompt(template: str, context: dict[str, str], stage_id: str) -> str:
-    try:
-        return template.format(**context)
-    except KeyError as error:
-        raise ValueError(f"Stage {stage_id} references an unavailable placeholder: {error.args[0]}") from error
+    """Replace only named HALO placeholders, preserving literal JSON braces."""
+    placeholders = set(re.findall(r"\{([A-Za-z_][A-Za-z0-9_]*)\}", template))
+    missing = sorted(placeholders.difference(context))
+    if missing:
+        raise ValueError(f"Stage {stage_id} references an unavailable placeholder: {missing[0]}")
+    rendered = template
+    for placeholder in placeholders:
+        rendered = rendered.replace(f"{{{placeholder}}}", context[placeholder])
+    return rendered
 
 
 def execute(config_path: Path, output_root: Path, run_id: str, dry_run: bool = False) -> Path:
@@ -240,6 +291,7 @@ def execute(config_path: Path, output_root: Path, run_id: str, dry_run: bool = F
                     {
                         "run_id": run_id,
                         "generated_at": utc_now(),
+                        "article_id": config.get("article_id", "ARTICLE_001"),
                         "repetition": repetition,
                         "question_id": question["question_id"],
                         "question_type": question.get("type"),
@@ -254,5 +306,6 @@ def execute(config_path: Path, output_root: Path, run_id: str, dry_run: bool = F
                 )
     write_jsonl(run_dir / "responses.jsonl", records)
     write_label_template(run_dir / "labels.template.csv", records)
+    write_blind_review_files(run_dir, records, {config.get("article_id", "ARTICLE_001"): article})
     return run_dir
 
