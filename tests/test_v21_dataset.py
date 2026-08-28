@@ -7,7 +7,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from halo_runner.v21_dataset import build_candidate_artifacts, eligible_types
+from halo_runner.v21_dataset import (
+    build_candidate_artifacts,
+    eligible_types,
+    parse_type_quotas,
+    select_balanced_source_pool,
+)
 
 
 class HaloV21DatasetTests(unittest.TestCase):
@@ -39,6 +44,24 @@ class HaloV21DatasetTests(unittest.TestCase):
             self.assertTrue((output / "ragtruth_source_candidates.jsonl").exists())
             self.assertTrue((output / "candidate_manifest.json").exists())
             self.assertTrue((output / "candidate_review.template.csv").exists())
+
+    def test_selection_uses_unique_sources_and_prioritizes_rare_type(self):
+        candidates = [
+            {"candidate_id": "a", "eligible_question_types": ["fact_event", "citation_link"]},
+            {"candidate_id": "b", "eligible_question_types": ["fact_event"]},
+        ]
+        selected, manifest = select_balanced_source_pool(
+            candidates, {"fact_event": 1, "citation_link": 1}, seed=7
+        )
+        self.assertEqual(manifest["unique_source_packets"], 2)
+        self.assertEqual({row["candidate_id"] for row in selected}, {"a", "b"})
+        linked = next(row for row in selected if row["candidate_id"] == "a")
+        self.assertEqual(linked["selected_question_type"], "citation_link")
+
+    def test_quota_parser_requires_explicit_valid_quota(self):
+        self.assertEqual(parse_type_quotas(["fact_event=3"]), {"fact_event": 3})
+        with self.assertRaises(ValueError):
+            parse_type_quotas(["fact_event=0"])
 
 
 if __name__ == "__main__":

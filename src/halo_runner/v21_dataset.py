@@ -141,3 +141,76 @@ def build_candidate_artifacts(source_info_path: Path, output_dir: Path, seed: in
     write_json(output_dir / "candidate_manifest.json", manifest)
     write_reviewer_template(output_dir / "candidate_review.template.csv", candidates)
     return manifest
+
+
+def parse_type_quotas(values: list[str]) -> dict[str, int]:
+    """Parse CLI-friendly `type=count` values without silently choosing N."""
+    quotas: dict[str, int] = {}
+    known = {"fact_event", "numeric_calculation", "causal_overreach", "citation_link"}
+    for value in values:
+        key, separator, raw_count = value.partition("=")
+        if not separator or key not in known:
+            raise ValueError(f"Invalid question-type quota: {value}")
+        try:
+            count = int(raw_count)
+        except ValueError as error:
+            raise ValueError(f"Quota for {key} must be an integer") from error
+        if count < 1:
+            raise ValueError(f"Quota for {key} must be positive")
+        if key in quotas:
+            raise ValueError(f"Duplicate quota for {key}")
+        quotas[key] = count
+    if not quotas:
+        raise ValueError("At least one --quota question_type=count value is required")
+    return quotas
+
+
+def select_balanced_source_pool(
+    candidates: list[dict[str, Any]], quotas: dict[str, int], seed: int
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Select unique sources deterministically before question/model generation.
+
+    Scarce link candidates are allocated first so that a broad type cannot use
+    a source needed by a later rare type. Selection never reads model outputs.
+    """
+    randomizer = random.Random(seed)
+    by_type: dict[str, list[dict[str, Any]]] = {}
+    for kind in quotas:
+        eligible = [item for item in candidates if kind in item.get("eligible_question_types", [])]
+        randomizer.shuffle(eligible)
+        by_type[kind] = eligible
+
+    ordered_types = sorted(quotas, key=lambda kind: (len(by_type[kind]), kind))
+    selected_ids: set[str] = set()
+    selected: list[dict[str, Any]] = []
+    for kind in ordered_types:
+        choices = [item for item in by_type[kind] if item["candidate_id"] not in selected_ids]
+        if len(choices) < quotas[kind]:
+            raise ValueError(
+                f"Cannot fulfill {kind}={quotas[kind]} with unique sources; only {len(choices)} remain"
+            )
+        for rank, item in enumerate(choices[:quotas[kind]], start=1):
+            copy = dict(item)
+            copy.update(
+                {
+                    "selected_question_type": kind,
+                    "selection_rank_within_type": rank,
+                    "selection_seed": seed,
+                    "selection_status": "pending_human_packet_validation",
+                }
+            )
+            selected.append(copy)
+            selected_ids.add(item["candidate_id"])
+
+    selected.sort(key=lambda item: (item["selected_question_type"], item["selection_rank_within_type"]))
+    manifest = {
+        "protocol_version": "halo-2.1-source-pool-v1",
+        "created_at": utc_now(),
+        "selection_seed": seed,
+        "requested_quotas": quotas,
+        "selection_order": ordered_types,
+        "selected_source_packets": len(selected),
+        "unique_source_packets": len(selected_ids),
+        "selection_rule": "Unique source-only allocation; scarce eligible types are allocated first; model outputs are never used.",
+    }
+    return selected, manifest
