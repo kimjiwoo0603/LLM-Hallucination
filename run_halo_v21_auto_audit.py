@@ -29,11 +29,16 @@ def main() -> int:
     parser.add_argument("--budget-config", type=Path, default=ROOT / "config" / "halo_v21_budget.json")
     parser.add_argument("--ledger-path", type=Path, default=ROOT / "results" / "v2_1" / "api_usage_ledger.jsonl")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--offset", type=int, default=0, help="Zero-based response offset for a resumable audit batch")
     parser.add_argument("--limit", type=int)
+    parser.add_argument("--resume", action="store_true")
     args = parser.parse_args()
     config, budget = read_json(args.config), read_json(args.budget_config)
     packets = {row["packet_id"]: row for row in read_jsonl(args.benchmark)}
     responses = read_jsonl(args.responses)
+    if args.offset < 0:
+        raise ValueError("--offset must be zero or greater")
+    responses = responses[args.offset:]
     if args.limit is not None:
         responses = responses[:args.limit]
     if not responses:
@@ -47,12 +52,18 @@ def main() -> int:
     assert_within_budget(projected_new_cost_usd=projected, spent_live_cost_usd=spent, budget=budget)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     write_json(args.output_dir / "auto_audit_manifest.json", {
-        "protocol_version": config["protocol_version"], "created_at": utc_now(), "dry_run": args.dry_run,
+        "protocol_version": config["protocol_version"], "created_at": utc_now(), "dry_run": args.dry_run, "offset": args.offset,
         "auditor_model": config["model"], "response_count": len(responses), "projected_new_cost_usd": projected,
         "prior_recorded_spend_usd": spent, "human_finalization_required": True,
     })
-    audits, ledger_rows = [], []
+    audit_path = args.output_dir / "auto_audit.pending_human_review.jsonl"
+    audits = read_jsonl(audit_path) if args.resume and audit_path.exists() else []
+    done = {(row["packet_id"], row.get("response_sha256")) for row in audits}
+    new_audits = 0
     for response in responses:
+        key = (response["packet_id"], response.get("response_sha256"))
+        if key in done:
+            continue
         packet = packets[response["packet_id"]]
         if args.dry_run:
             audit, usage = {field: ([] if field == "findings" else 0) for field in ["fact_hallucination_candidate", "numeric_error_candidate", "causal_overreach_candidate", "citation_link_hallucination_candidate", "findings", "confidence"]}, TokenUsage(0, 0)
@@ -64,12 +75,13 @@ def main() -> int:
             "response": response["response"], "question_type": packet["candidate"]["selected_question_type"], "audit": audit,
             "auto_audit_status": "PENDING_HUMAN_CONFIRMATION", "auditor_model": config["model"],
         })
+        write_jsonl(audit_path, audits)
+        new_audits += 1
         if not args.dry_run:
+            ledger_rows = read_jsonl(ledger) if ledger.exists() else []
             ledger_rows.append({"created_at": utc_now(), "phase": "auto_audit", "packet_id": response["packet_id"], "model": config["model"], "input_tokens": usage.input_tokens, "output_tokens": usage.output_tokens, "cost_usd": call_cost_usd(usage, config["pricing"])})
-    write_jsonl(args.output_dir / "auto_audit.pending_human_review.jsonl", audits)
-    if ledger_rows:
-        write_jsonl(ledger, (read_jsonl(ledger) if ledger.exists() else []) + ledger_rows)
-    print(f"Created {len(audits)} automatic audit candidates; projected API cost ${projected:.4f}; dry_run={args.dry_run}")
+            write_jsonl(ledger, ledger_rows)
+    print(f"Created {new_audits} new automatic audit candidates ({len(audits)} total); projected API cost ${projected:.4f}; dry_run={args.dry_run}")
     return 0
 
 
