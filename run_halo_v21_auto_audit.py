@@ -69,11 +69,25 @@ def main() -> int:
             audit, usage = {field: ([] if field == "findings" else 0) for field in ["fact_hallucination_candidate", "numeric_error_candidate", "causal_overreach_candidate", "citation_link_hallucination_candidate", "findings", "confidence"]}, TokenUsage(0, 0)
         else:
             content, usage = openai_chat_completion(automatic_audit_prompt(packet, str(response["response"])), config)
-            audit = parse_audit_response(content)
+            try:
+                audit = parse_audit_response(content)
+                audit_parse_status = "PARSED"
+            except ValueError:
+                # A malformed AI screen must never stop or silently bias human review.
+                # Preserve the row as explicitly requiring a human-first determination.
+                audit = {
+                    "fact_hallucination_candidate": 0,
+                    "numeric_error_candidate": 0,
+                    "causal_overreach_candidate": 0,
+                    "citation_link_hallucination_candidate": 0,
+                    "findings": [],
+                    "confidence": 1,
+                }
+                audit_parse_status = "UNPARSEABLE_REQUIRES_HUMAN_REVIEW"
         audits.append({
             "packet_id": response["packet_id"], "response_sha256": response.get("response_sha256"), "question": packet["packet_draft"]["question"],
             "response": response["response"], "question_type": packet["candidate"]["selected_question_type"], "audit": audit,
-            "auto_audit_status": "PENDING_HUMAN_CONFIRMATION", "auditor_model": config["model"],
+            "auto_audit_status": "PENDING_HUMAN_CONFIRMATION", "audit_parse_status": audit_parse_status if not args.dry_run else "DRY_RUN", "auditor_model": config["model"],
         })
         write_jsonl(audit_path, audits)
         new_audits += 1
