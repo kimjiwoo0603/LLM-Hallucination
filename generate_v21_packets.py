@@ -62,6 +62,10 @@ def main() -> int:
     parser.add_argument("--generation-config", type=Path, default=ROOT / "config" / "halo_v21_packet_generation.json")
     parser.add_argument("--budget-config", type=Path, default=ROOT / "config" / "halo_v21_budget.json")
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument(
+        "--ledger-path", type=Path, default=ROOT / "results" / "v2_1" / "api_usage_ledger.jsonl",
+        help="Project-wide append-only API cost ledger shared across calibration and primary runs.",
+    )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--limit", type=int)
     args = parser.parse_args()
@@ -74,7 +78,8 @@ def main() -> int:
     config = read_json(args.generation_config)
     budget = read_json(args.budget_config)
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    ledger_path = args.output_dir / "packet_generation_usage.jsonl"
+    ledger_path = args.ledger_path.resolve()
+    ledger_path.parent.mkdir(parents=True, exist_ok=True)
     projected = sum(projected_packet_cost_usd(candidate, config, budget["pricing"]) for candidate in candidates)
     spent = prior_spend_usd(ledger_path)
     assert_within_budget(projected_new_cost_usd=projected, spent_live_cost_usd=spent, budget=budget)
@@ -82,6 +87,7 @@ def main() -> int:
         "created_at": utc_now(), "dry_run": args.dry_run, "candidate_count": len(candidates),
         "projected_new_cost_usd": projected, "prior_recorded_spend_usd": spent,
         "live_run_cap_usd": budget["live_run_cap_usd"], "model": config["model"],
+        "project_ledger_path": str(ledger_path),
     })
     drafts: list[dict[str, Any]] = []
     ledger_rows: list[dict[str, Any]] = []
@@ -107,6 +113,7 @@ def main() -> int:
     if ledger_rows:
         existing = read_jsonl(ledger_path) if ledger_path.exists() else []
         write_jsonl(ledger_path, existing + ledger_rows)
+        write_jsonl(args.output_dir / "packet_generation_usage.jsonl", ledger_rows)
     print(f"Created {len(drafts)} packet drafts; projected API cost ${projected:.4f}; dry_run={args.dry_run}")
     return 0
 
