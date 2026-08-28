@@ -1,0 +1,19 @@
+{
+  "protocol_version": "halo-2.1-budget-v1",
+  "currency": "USD",
+  "total_cap_usd": 20.0,
+  "reserved_contingency_usd": 2.0,
+  "live_run_cap_usd": 18.0,
+  "pricing": {
+    "model": "gpt-4.1-2025-04-14",
+    "input_usd_per_million_tokens": 2.0,
+    "output_usd_per_million_tokens": 8.0,
+    "source": "https://developers.openai.com/api/docs/models/gpt-4.1"
+  },
+  "policy": {
+    "preflight_required": true,
+    "block_if_projected_total_exceeds_live_run_cap": true,
+    "record_actual_usage_after_every_call": true,
+    "purpose": "calibration and primary execution combined; no API call may be treated as outside this cap"
+  }
+}
