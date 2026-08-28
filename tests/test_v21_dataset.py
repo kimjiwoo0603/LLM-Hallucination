@@ -63,6 +63,16 @@ class HaloV21DatasetTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             parse_type_quotas(["fact_event=0"])
 
+    def test_selection_can_exclude_previously_used_source(self):
+        candidates = [
+            {"candidate_id": "a", "source_id": "old", "eligible_question_types": ["numeric_calculation"]},
+            {"candidate_id": "b", "source_id": "new", "eligible_question_types": ["numeric_calculation"]},
+        ]
+        selected, _ = select_balanced_source_pool(
+            candidates, {"numeric_calculation": 1}, seed=7, excluded_source_ids={"old"}
+        )
+        self.assertEqual(selected[0]["source_id"], "new")
+
 
 if __name__ == "__main__":
     unittest.main()

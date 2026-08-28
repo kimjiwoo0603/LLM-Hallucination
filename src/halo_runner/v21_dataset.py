@@ -166,17 +166,21 @@ def parse_type_quotas(values: list[str]) -> dict[str, int]:
 
 
 def select_balanced_source_pool(
-    candidates: list[dict[str, Any]], quotas: dict[str, int], seed: int
+    candidates: list[dict[str, Any]], quotas: dict[str, int], seed: int, excluded_source_ids: set[str] | None = None
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Select unique sources deterministically before question/model generation.
 
     Scarce link candidates are allocated first so that a broad type cannot use
     a source needed by a later rare type. Selection never reads model outputs.
     """
+    excluded_source_ids = excluded_source_ids or set()
     randomizer = random.Random(seed)
     by_type: dict[str, list[dict[str, Any]]] = {}
     for kind in quotas:
-        eligible = [item for item in candidates if kind in item.get("eligible_question_types", [])]
+        eligible = [
+            item for item in candidates
+            if kind in item.get("eligible_question_types", []) and item.get("source_id") not in excluded_source_ids
+        ]
         randomizer.shuffle(eligible)
         by_type[kind] = eligible
 
@@ -207,6 +211,7 @@ def select_balanced_source_pool(
         "protocol_version": "halo-2.1-source-pool-v1",
         "created_at": utc_now(),
         "selection_seed": seed,
+        "excluded_source_ids": sorted(excluded_source_ids),
         "requested_quotas": quotas,
         "selection_order": ordered_types,
         "selected_source_packets": len(selected),
