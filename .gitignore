@@ -2,3 +2,4 @@ __pycache__/
 *.pyc
 results/
 .env
+datasets/v2_1/candidates/
