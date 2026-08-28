@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from halo_runner.v21_freeze import apply_numeric_calibration_revisions, approved
+from halo_runner.v21_freeze import apply_numeric_calibration_revisions, approved, freeze_final_packets
 
 
 class V21FreezeTests(unittest.TestCase):
@@ -22,6 +22,11 @@ class V21FreezeTests(unittest.TestCase):
         self.assertEqual(revised["packet_draft"]["numeric_spec"]["expected_result"], "5.2% (rounded to one decimal place)")
         self.assertEqual(revised["packet_draft"]["unchanged"], "keep")
         self.assertEqual(revised["human_approval"]["round"], "numeric_recalibration_rereview")
+
+    def test_final_freeze_rejects_development_overlap(self) -> None:
+        packets = [{"candidate": {"source_id": "11945", "selected_question_type": "fact_event"}}] * 48
+        with self.assertRaises(ValueError):
+            freeze_final_packets(packets, approval_basis="user_confirmed_all", excluded_source_ids={"11945"})
 
 
 if __name__ == "__main__":

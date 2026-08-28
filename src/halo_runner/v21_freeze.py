@@ -163,3 +163,36 @@ def freeze_development_numeric_recalibration(
         "review_records_sha256": sha256_text(str(review_records)),
     }
     return revised, manifest
+
+
+def freeze_final_packets(
+    packets: list[dict[str, Any]], *, approval_basis: str, excluded_source_ids: set[str]
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Freeze a human-approved final benchmark, separate from development data."""
+    if approval_basis != "user_confirmed_all":
+        raise ValueError("Final benchmark requires explicit human approval")
+    if len(packets) != 48:
+        raise ValueError("Final benchmark must contain exactly 48 approved packets")
+    source_ids = [str(row["candidate"]["source_id"]) for row in packets]
+    if len(source_ids) != len(set(source_ids)):
+        raise ValueError("Final benchmark source IDs must be unique")
+    overlap = set(source_ids).intersection(excluded_source_ids)
+    if overlap:
+        raise ValueError(f"Final benchmark overlaps development source IDs: {sorted(overlap)[0]}")
+    type_counts = Counter(row["candidate"]["selected_question_type"] for row in packets)
+    expected = {"fact_event": 12, "numeric_calculation": 12, "causal_overreach": 12, "citation_link": 12}
+    if dict(type_counts) != expected:
+        raise ValueError(f"Final benchmark is not balanced: {dict(type_counts)}")
+    frozen = []
+    for record in packets:
+        copy = {**record, "human_approval": {"basis": approval_basis}, "human_review_status": "approved_final"}
+        frozen.append(copy)
+    frozen.sort(key=lambda row: (row["candidate"]["selected_question_type"], str(row["candidate"]["source_id"])))
+    manifest = {
+        "protocol_version": "halo-2.1-final-freeze-v1",
+        "frozen_at": utc_now(), "unit_count": len(frozen), "question_type_counts": expected,
+        "source_ids": sorted(source_ids), "approval_basis": approval_basis,
+        "development_source_ids_excluded": sorted(excluded_source_ids),
+        "policy": "Final responses and final labels must not be pooled with development calibration or earlier pilot data.",
+    }
+    return frozen, manifest
