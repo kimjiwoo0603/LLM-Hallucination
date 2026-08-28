@@ -3,3 +3,4 @@ __pycache__/
 results/
 .env
 datasets/v2_1/candidates/
+datasets/v2_1/frozen/
