@@ -1,0 +1,15 @@
+{
+  "protocol_version": "halo-2.1-auto-audit-v1",
+  "purpose": "AI-assisted preliminary source-only audit. Human reviewer confirms or corrects every candidate label; auto labels are never final outcomes.",
+  "model": "gpt-4.1-mini-2025-04-14",
+  "api_key_env": "OPENAI_API_KEY",
+  "temperature": 0,
+  "max_output_tokens": 450,
+  "response_format_json": true,
+  "pricing": {
+    "model": "gpt-4.1-mini-2025-04-14",
+    "input_usd_per_million_tokens": 0.4,
+    "output_usd_per_million_tokens": 1.6,
+    "source": "https://developers.openai.com/api/docs/models/gpt-4.1-mini"
+  }
+}

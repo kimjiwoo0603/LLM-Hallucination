@@ -34,6 +34,8 @@ def openai_chat_completion(prompt: str, config: dict[str, Any]) -> tuple[str, To
         "max_tokens": config["max_output_tokens"],
         "messages": [{"role": "user", "content": prompt}],
     }
+    if config.get("response_format_json"):
+        payload["response_format"] = {"type": "json_object"}
     request = urllib.request.Request(
         "https://api.openai.com/v1/chat/completions",
         data=json.dumps(payload).encode("utf-8"),
