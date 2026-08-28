@@ -68,6 +68,7 @@ def main() -> int:
     )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--limit", type=int)
+    parser.add_argument("--resume", action="store_true", help="Resume a partially generated packet file without re-calling completed candidates.")
     args = parser.parse_args()
 
     candidates = read_jsonl(args.source_pool)
@@ -78,20 +79,27 @@ def main() -> int:
     config = read_json(args.generation_config)
     budget = read_json(args.budget_config)
     args.output_dir.mkdir(parents=True, exist_ok=True)
+    drafts_path = args.output_dir / "packet_drafts.pending_review.jsonl"
+    usage_path = args.output_dir / "packet_generation_usage.jsonl"
+    existing_drafts = read_jsonl(drafts_path) if args.resume and drafts_path.exists() else []
+    completed_ids = {str(row["candidate"]["candidate_id"]) for row in existing_drafts}
+    pending_candidates = [row for row in candidates if str(row["candidate_id"]) not in completed_ids]
     ledger_path = args.ledger_path.resolve()
     ledger_path.parent.mkdir(parents=True, exist_ok=True)
-    projected = sum(projected_packet_cost_usd(candidate, config, budget["pricing"]) for candidate in candidates)
+    projected = sum(projected_packet_cost_usd(candidate, config, budget["pricing"]) for candidate in pending_candidates)
     spent = prior_spend_usd(ledger_path)
     assert_within_budget(projected_new_cost_usd=projected, spent_live_cost_usd=spent, budget=budget)
     write_json(args.output_dir / "packet_generation_preflight.json", {
         "created_at": utc_now(), "dry_run": args.dry_run, "candidate_count": len(candidates),
+        "completed_before_start": len(existing_drafts), "remaining_candidate_count": len(pending_candidates),
         "projected_new_cost_usd": projected, "prior_recorded_spend_usd": spent,
         "live_run_cap_usd": budget["live_run_cap_usd"], "model": config["model"],
         "project_ledger_path": str(ledger_path),
     })
-    drafts: list[dict[str, Any]] = []
+    drafts: list[dict[str, Any]] = list(existing_drafts)
+    existing_usage = read_jsonl(usage_path) if args.resume and usage_path.exists() else []
     ledger_rows: list[dict[str, Any]] = []
-    for candidate in candidates:
+    for candidate in pending_candidates:
         prompt = packet_prompt(candidate)
         if args.dry_run:
             packet: dict[str, Any] = {"dry_run": True, "question": "[No API call]"}
@@ -99,22 +107,24 @@ def main() -> int:
         else:
             packet, usage = request_packet(prompt, config)
         cost = call_cost_usd(usage, budget["pricing"])
-        drafts.append({
+        draft_record = {
             "packet_id": f"HALO21_{candidate['candidate_id']}_{candidate['selected_question_type']}",
             "candidate": candidate, "packet_draft": packet,
             "human_review_status": "pending_human_validation",
-        })
+        }
+        drafts.append(draft_record)
+        write_jsonl(drafts_path, drafts)
         if not args.dry_run:
-            ledger_rows.append({
-                "created_at": utc_now(), "packet_id": drafts[-1]["packet_id"], "model": config["model"],
+            ledger_row = {
+                "created_at": utc_now(), "phase": "packet_generation", "packet_id": draft_record["packet_id"], "model": config["model"],
                 "input_tokens": usage.input_tokens, "output_tokens": usage.output_tokens, "cost_usd": cost,
-            })
-    write_jsonl(args.output_dir / "packet_drafts.pending_review.jsonl", drafts)
+            }
+            ledger_rows.append(ledger_row)
+            write_jsonl(usage_path, existing_usage + ledger_rows)
     if ledger_rows:
         existing = read_jsonl(ledger_path) if ledger_path.exists() else []
         write_jsonl(ledger_path, existing + ledger_rows)
-        write_jsonl(args.output_dir / "packet_generation_usage.jsonl", ledger_rows)
-    print(f"Created {len(drafts)} packet drafts; projected API cost ${projected:.4f}; dry_run={args.dry_run}")
+    print(f"Created {len(drafts)} packet drafts ({len(pending_candidates)} new); projected API cost ${projected:.4f}; dry_run={args.dry_run}")
     return 0
 
 
