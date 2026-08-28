@@ -1,0 +1,8 @@
+{
+  "protocol_version": "halo-2.1-packet-generation-v1",
+  "model": "gpt-4.1-2025-04-14",
+  "temperature": 0,
+  "max_output_tokens": 1200,
+  "api_key_env": "OPENAI_API_KEY",
+  "purpose": "Development-only source-packet drafting. Every generated field requires human validation before dataset freeze."
+}
