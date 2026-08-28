@@ -13,9 +13,15 @@ from halo_runner.v21_dataset import (
     parse_type_quotas,
     select_balanced_source_pool,
 )
+from halo_runner.v21_packets import packet_prompt
 
 
 class HaloV21DatasetTests(unittest.TestCase):
+    def test_numeric_packet_prompt_requires_auditable_misleading_premise(self) -> None:
+        candidate = {"selected_question_type": "numeric_calculation", "source_id": "1", "source_text": "A value is 10 and then 20."}
+        prompt = packet_prompt(candidate)
+        self.assertIn("wrong baseline, denominator, unit, time window", prompt)
+        self.assertIn("misleading numerical premise explicit", prompt)
     def test_eligibility_marks_numeric_and_link_candidates(self):
         types, _ = eligible_types(
             ("The report lists 20 units and 30 units. " * 8) + "Details are available at https://example.org/report.",

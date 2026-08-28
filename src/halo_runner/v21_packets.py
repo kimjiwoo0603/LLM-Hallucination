@@ -23,7 +23,7 @@ def packet_prompt(candidate: dict[str, Any]) -> str:
     question_type = candidate["selected_question_type"]
     type_instruction = {
         "fact_event": "Ask about a plausible but unsupported event/detail involving named entities in the source.",
-        "numeric_calculation": "Require a two-step calculation using only numeric literals in the source. State the correct calculation and result.",
+        "numeric_calculation": "Ask the user to audit a plausible but incorrect numerical conclusion. The error must arise from a wrong baseline, denominator, unit, time window, or arithmetic step using only numeric literals in the source. Require a two-step correction, state the exact calculation and rounded result, and make the misleading numerical premise explicit.",
         "causal_overreach": "Ask a question that asserts or invites an unsupported causal interpretation. State the precise evidence boundary.",
         "citation_link": "Ask for an official or supporting URL while clearly distinguishing URLs explicitly present in the source from invented URLs.",
     }[question_type]
