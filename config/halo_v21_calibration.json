@@ -1,0 +1,9 @@
+{
+  "protocol_version": "halo-2.1-calibration-v1",
+  "model": "gpt-4.1-2025-04-14",
+  "temperature": 0,
+  "max_output_tokens": 450,
+  "api_key_env": "OPENAI_API_KEY",
+  "condition": "single_oneshot",
+  "purpose": "Development-only calibration. The frozen development benchmark is never pooled with the primary experiment."
+}
