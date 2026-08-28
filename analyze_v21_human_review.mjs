@@ -131,9 +131,37 @@ for (let i = 0; i < conditions.length; i += 1) for (let j = i + 1; j < condition
   for (const metric of ["accuracy", "usefulness"]) pairwiseRatings[metric].push({ comparison: `${a} vs ${b}`, condition_a: a, condition_b: b, ...wilcoxon(packetOrder.map((packet) => units.get(packet)[a][metric]), packetOrder.map((packet) => units.get(packet)[b][metric])) });
 }
 const analysis = { protocol: "HALO 2.1 primary human-reviewed analysis v1", validation: { completed_rows: reviewed.length, packets: units.size, conditions, restored_by: "blind review row order + packet_id + response SHA-256" }, descriptive: summaries, primary_hallucination: { cochran_q: cochran, pairwise_mcnemar_holm: holm(pairwiseHallucination) }, supplementary_ratings: { accuracy_friedman: friedman(matrixFor("accuracy")), usefulness_friedman: friedman(matrixFor("usefulness")), pairwise_wilcoxon_holm: { accuracy: holm(pairwiseRatings.accuracy), usefulness: holm(pairwiseRatings.usefulness) } } };
+const subtypePairwiseAll = [];
+const subtypeAnalysis = {};
+for (const subtype of labelFields) {
+  const matrix = matrixFor(subtype);
+  const pairs = [];
+  for (let i = 0; i < conditions.length; i += 1) for (let j = i + 1; j < conditions.length; j += 1) {
+    const conditionA = conditions[i]; const conditionB = conditions[j];
+    const entry = { subtype, comparison: `${conditionA} vs ${conditionB}`, condition_a: conditionA, condition_b: conditionB, ...exactMcNemar(packetOrder.map((packet) => units.get(packet)[conditionA][subtype]), packetOrder.map((packet) => units.get(packet)[conditionB][subtype])) };
+    pairs.push(entry); subtypePairwiseAll.push(entry);
+  }
+  subtypeAnalysis[subtype] = {
+    cochran_q: cochranQ(matrix),
+    condition_counts: conditions.map((condition) => ({ condition, count: reviewed.filter((row) => row.condition === condition).reduce((sum, row) => sum + row[subtype], 0), rate: reviewed.filter((row) => row.condition === condition).reduce((sum, row) => sum + row[subtype], 0) / 48 })),
+    pairwise_mcnemar_holm_within_subtype: holm(pairs),
+  };
+}
+const globalSubtypeHolm = holm(subtypePairwiseAll);
+const globalSubtypeLookup = new Map(globalSubtypeHolm.map((row) => [`${row.subtype}|${row.comparison}`, row.p_holm]));
+for (const subtype of labelFields) for (const row of subtypeAnalysis[subtype].pairwise_mcnemar_holm_within_subtype) row.p_holm_across_all_24_subtype_tests = globalSubtypeLookup.get(`${subtype}|${row.comparison}`);
+const questionTypes = [...new Set(reviewed.map((row) => row.question_type))].sort();
+const questionTypeDescriptives = questionTypes.flatMap((question_type) => conditions.map((condition) => {
+  const rows = reviewed.filter((row) => row.question_type === question_type && row.condition === condition);
+  return { question_type, condition, n: rows.length, composite_count: rows.reduce((sum, row) => sum + row.composite, 0), composite_rate: rows.reduce((sum, row) => sum + row.composite, 0) / rows.length, fact_count: rows.reduce((sum, row) => sum + row.fact, 0), numeric_count: rows.reduce((sum, row) => sum + row.numeric, 0), causal_count: rows.reduce((sum, row) => sum + row.causal, 0), link_count: rows.reduce((sum, row) => sum + row.link, 0) };
+}));
+analysis.hallucination_subtypes = subtypeAnalysis;
+analysis.question_type_descriptives_exploratory = questionTypeDescriptives;
 await fs.mkdir(outputDir, { recursive: true });
 await fs.writeFile(path.join(outputDir, "analysis_summary.json"), JSON.stringify(analysis, null, 2));
 const csv = (rows) => rows.length ? [Object.keys(rows[0]).join(","), ...rows.map((row) => Object.values(row).map((v) => typeof v === "string" ? `"${v.replaceAll('"', '""')}"` : v).join(","))].join("\n") : "";
 await fs.writeFile(path.join(outputDir, "condition_descriptives.csv"), csv(summaries));
 await fs.writeFile(path.join(outputDir, "hallucination_pairwise.csv"), csv(analysis.primary_hallucination.pairwise_mcnemar_holm));
+await fs.writeFile(path.join(outputDir, "hallucination_subtype_pairwise.csv"), csv(globalSubtypeHolm));
+await fs.writeFile(path.join(outputDir, "question_type_descriptives_exploratory.csv"), csv(questionTypeDescriptives));
 console.log(JSON.stringify(analysis, null, 2));
