@@ -121,7 +121,15 @@ def corrected_answer(question: str, checked: list[Claim], api_key: str, model: s
     if not supported:
         return "원문 근거가 확인된 내용이 없어 답변을 보류합니다."
     if not api_key:
-        return "원문 인용 답변입니다.\n\n" + "\n".join(f"- {claim.evidence}" for claim in supported)
+        primary = supported[0].evidence
+        who_question = re.search(r"누가|누구|어느\s*(기관|회사|단체|나라|도시)", question)
+        subject = re.match(r"^(.{1,40}?)(?:은|는|이|가)(?=\s)", primary)
+        if who_question and subject:
+            answer = f"원문에 따르면, **{subject.group(1)}**입니다."
+        else:
+            answer = f"원문에 따르면, {primary}"
+        evidence = "\n".join(f"- “{claim.evidence}”" for claim in supported)
+        return f"{answer}\n\n**원문 근거**\n{evidence}"
     safe_claims = [{"id": c.number, "claim": c.claim, "evidence": c.evidence} for c in supported]
     data = json_completion(
         api_key,
