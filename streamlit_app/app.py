@@ -1,12 +1,14 @@
 """HALO: 질문에 답하되 원문 근거가 없는 내용은 제외하는 Streamlit 데모."""
 
 import json
+import os
 import re
 from dataclasses import dataclass
 
 import streamlit as st
 
 DEFAULT_MODEL = "gpt-4.1-mini"
+MAX_SERVER_AI_RUNS_PER_SESSION = 5
 
 APP_CSS = """
 <style>
@@ -66,6 +68,14 @@ class Claim:
 
 def clean_text(text: str) -> str:
     return re.sub(r"\s+", " ", str(text)).strip()
+
+
+def deployed_api_key() -> str:
+    """Read the server-side secret without ever sending it to the browser."""
+    try:
+        return clean_text(st.secrets.get("OPENAI_API_KEY", "")) or clean_text(os.getenv("OPENAI_API_KEY", ""))
+    except Exception:
+        return clean_text(os.getenv("OPENAI_API_KEY", ""))
 
 
 def split_sentences(article: str) -> list[str]:
@@ -208,13 +218,21 @@ st.markdown(
 with st.sidebar:
     st.markdown("### 🛡️ HALO 설정")
     st.caption("검증 강도를 선택하세요")
-    use_ai = st.toggle("OpenAI API로 질문 답변", value=False)
+    server_key = deployed_api_key()
     api_key, model = "", DEFAULT_MODEL
-    if use_ai:
+    if server_key:
+        use_ai, api_key = True, server_key
+        st.success("HALO 서버 AI가 연결되어 있습니다.")
+        st.caption(f"이 브라우저에서는 최대 {MAX_SERVER_AI_RUNS_PER_SESSION}회 AI 검증을 실행할 수 있습니다.")
+    else:
+        use_ai = st.toggle("OpenAI API로 질문 답변", value=False)
+    if use_ai and not server_key:
         api_key = st.text_input("OpenAI API 키", type="password")
         model = st.text_input("모델", value=DEFAULT_MODEL)
     st.divider()
-    st.caption("AI 모드는 작성·검사·수정 Agent를 모두 실행합니다. 키는 저장하지 않습니다.")
+    st.caption("AI 모드는 작성·검사·수정 Agent를 모두 실행합니다.")
+    if not server_key:
+        st.caption("직접 입력한 키는 저장하지 않습니다.")
     st.caption("API 없이도 원문 인용만으로 보수적으로 확인할 수 있습니다.")
 
 step_1, step_2, step_3 = st.columns(3)
@@ -236,6 +254,8 @@ if st.button("검증해서 답변하기", type="primary", use_container_width=Tr
         st.warning("검증하려면 뉴스 원문을 40자 이상 넣어 주세요.")
     elif use_ai and not api_key:
         st.warning("AI Agent를 쓰려면 OpenAI API 키를 입력해 주세요.")
+    elif server_key and st.session_state.get("halo_server_ai_runs", 0) >= MAX_SERVER_AI_RUNS_PER_SESSION:
+        st.warning(f"이 브라우저의 AI 검증 한도({MAX_SERVER_AI_RUNS_PER_SESSION}회)에 도달했습니다. 잠시 후 다시 시도해 주세요.")
     else:
         with st.status("HALO Agent가 답변을 검증하고 있습니다...", expanded=True) as status:
             try:
@@ -245,6 +265,8 @@ if st.button("검증해서 답변하기", type="primary", use_container_width=Tr
                 checked = check_claims(article, candidates, api_key, model)
                 st.write("3. 수정 Agent가 통과한 주장만으로 답변을 다시 만듭니다.")
                 answer = corrected_answer(question, checked, api_key, model)
+                if server_key:
+                    st.session_state["halo_server_ai_runs"] = st.session_state.get("halo_server_ai_runs", 0) + 1
                 status.update(label="검증 및 수정 완료", state="complete", expanded=False)
             except Exception as error:
                 status.update(label="Agent 실행 실패", state="error", expanded=False)
