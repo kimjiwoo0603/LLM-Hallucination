@@ -1,0 +1,59 @@
+name: Run HALO v2 calibration (prompt vs structure)
+
+on:
+  workflow_dispatch:
+    inputs:
+      condition:
+        description: "One pre-registered v2 condition"
+        required: true
+        type: choice
+        options:
+          - single_raw
+          - single_gated
+          - multi_raw
+          - multi_gated
+      repetitions:
+        description: "Repetitions for each article-question pair (keep 1 in calibration)"
+        required: true
+        default: "1"
+      max_articles:
+        description: "Maximum articles (0 = all 4; keep 1 for a smoke test)"
+        required: true
+        default: "1"
+      max_questions_per_article:
+        description: "Maximum questions per article (0 = all 3; keep 1 for a smoke test)"
+        required: true
+        default: "1"
+      question_offset:
+        description: "Number of article-question pairs to skip"
+        required: true
+        default: "0"
+      max_total_questions:
+        description: "Maximum total questions (0 = all 12 calibration questions)"
+        required: true
+        default: "1"
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Create frozen calibration configuration
+        run: |
+          cp "config/halo_v2_${{ inputs.condition }}.calibration.json" config/halo_v2_run.json
+          python -c "import json; p='config/halo_v2_run.json'; d=json.load(open(p, encoding='utf-8')); d['repetitions']=int('${{ inputs.repetitions }}'); d['max_articles']=int('${{ inputs.max_articles }}'); d['max_questions_per_article']=int('${{ inputs.max_questions_per_article }}'); d['question_offset']=int('${{ inputs.question_offset }}'); d['max_total_questions']=int('${{ inputs.max_total_questions }}'); open(p,'w',encoding='utf-8').write(json.dumps(d,ensure_ascii=False,indent=2)+'\\n')"
+      - name: Run v2 calibration
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: python run_multi_experiment.py --config config/halo_v2_run.json --run-id github-${{ github.run_id }}
+      - name: Upload results even when a request fails
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: halo-v2-${{ inputs.condition }}-calibration-${{ github.run_id }}
+          path: results/github-${{ github.run_id }}/

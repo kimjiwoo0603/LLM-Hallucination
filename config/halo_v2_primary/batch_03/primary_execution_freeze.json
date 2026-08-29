@@ -1,0 +1,32 @@
+{
+  "dataset_version": "halo-news-snapshot-v2.0.0",
+  "model": "gpt-4.1",
+  "api_key_env": "OPENAI_API_KEY",
+  "temperature": 0,
+  "max_tokens": 1000,
+  "repetitions": 3,
+  "conditions": [
+    {
+      "condition_id": "single_raw",
+      "path": "halo_v2_primary.single_raw.json",
+      "config_sha256": "59763f13175a4c3589def05f70bfc161f20844e446c043e18d290b9d5bd3042e"
+    },
+    {
+      "condition_id": "single_gated",
+      "path": "halo_v2_primary.single_gated.json",
+      "config_sha256": "52c44c7199e1498c97a756fd9c44e10583ea695d1782935dbe81b49991e6ef07"
+    },
+    {
+      "condition_id": "multi_raw",
+      "path": "halo_v2_primary.multi_raw.json",
+      "config_sha256": "0997e24d18254c23df161da93a08bdcfc6c9f38db2a83504f6ac0f3d8a083d88"
+    },
+    {
+      "condition_id": "multi_gated",
+      "path": "halo_v2_primary.multi_gated.json",
+      "config_sha256": "23ad720fb20abde91356fec0fa77b55621dee43dd5ce1911dd0e4524943d2d78"
+    }
+  ],
+  "common_grounding_contract_sha256": "54759fd08b89876052884366132928238e173fe0748a59a9556200b48848ea8f",
+  "design": "2x2 same-model comparison: topology (self_refinement vs role_separated) × information flow (raw vs checker_supported_only)."
+}

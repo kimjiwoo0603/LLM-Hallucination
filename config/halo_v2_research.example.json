@@ -1,0 +1,13 @@
+{
+  "experiment_version": "halo-v2.0.0",
+  "dataset_version": "halo-news-benchmark-v2.0.0",
+  "analysis_scope": "pre_registered_after_pilot_freeze",
+  "primary_outcome": "hallucination",
+  "secondary_outcomes": ["accuracy", "usefulness", "abstention", "consistency"],
+  "excluded_outcomes": ["latency"],
+  "repetitions": 3,
+  "conditions": ["single_raw", "single_gated", "multi_raw", "multi_gated"],
+  "selection_seed": 20260827,
+  "budget": {"max_requests": 5000, "max_estimated_cost_usd": 30},
+  "statistics": {"single_repetition_primary": "Cochran_Q_then_exact_McNemar_with_Holm", "repeated_primary": "pre-specified clustered repeated-measures logistic model", "confidence_interval": "Wilson_95"}
+}
